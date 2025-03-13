@@ -15,7 +15,15 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapi
 # Load service account credentials from Streamlit secrets (it is already a dictionary)
 service_account_info = st.secrets["service_account"]
 
-# Use the dictionary to create credentials
+# Fix private key string formatting if necessary
+private_key = service_account_info.get("private_key")
+
+# Ensure that the private key is formatted correctly, with newline characters properly represented
+if private_key:
+    private_key = private_key.replace("\\n", "\n")  # Replaces escaped newlines with actual newlines
+    service_account_info["private_key"] = private_key  # Update the service account info with the fixed key
+
+# Create credentials using the updated dictionary
 creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
 
 def connect_to_gsheet():
