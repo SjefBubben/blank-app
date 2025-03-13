@@ -12,7 +12,7 @@ SHEET_ID = "19vqg2lx3hMCEj7MtxkISzsYz0gUaCLgSV11q-YYtXQY"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 
 # Load service account credentials from Streamlit secrets
-service_account_info = json.loads(json.dumps(st.secrets["service_account"]))
+service_account_info = st.secrets["service_account"]
 creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
 
 def connect_to_gsheet():
