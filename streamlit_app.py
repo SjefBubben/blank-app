@@ -88,7 +88,7 @@ def fetch_new_games():
         game["details"] = game_stats_batch.get(game["game_id"], {})
 
     return new_games
-@st.cache_data(ttl=20 * 20)
+@st.cache_data(ttl=5 * 5)
 def get_cached_games():
     games_in_memory = fetch_games_within_last_48_hours()
     return games_in_memory
