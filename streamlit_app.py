@@ -11,7 +11,7 @@ PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
 
 # User's Steam ID
-STEAM_ID = "76561198021131347"
+STEAM_ID = "76561197983741618"
 
 # Allowed player names
 ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish"}
