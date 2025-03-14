@@ -3,6 +3,8 @@ import time
 import requests
 import pandas as pd
 import plotly.express as px
+import time
+from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
 from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
@@ -95,8 +97,6 @@ def get_cached_games():
     return games_in_memory
 # **Home Page**
 def home_page():
-    st.header("Welcome to Bubberne Gaming")
-
     try:
         with st.spinner("Checking for new games..."):
             time.sleep(2)
@@ -118,6 +118,42 @@ def home_page():
         else:
             st.write("### Ingen nye bubbegames funnet.")
             st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
+
+        # Extract the highest and lowest rated players in the last 48 hours of games
+        top_player = None
+        low_player = None
+
+        all_players = []
+
+        for game in games_in_memory:
+            game_id = game["game_id"]
+            game_details = fetch_game_details(game_id)
+
+            for player in game_details.get("playerStats", []):
+                if player["name"] in ALLOWED_PLAYERS:
+                    all_players.append({
+                        "name": player["name"],
+                        "hltvRating": player.get("hltvRating", 0)  # Use 0 if rating is missing
+                    })
+
+        # Sort players by HLTV rating
+        if all_players:
+            top_player = max(all_players, key=itemgetter("hltvRating"))
+            low_player = min(all_players, key=itemgetter("hltvRating"))
+
+            # Display the cards
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.write("### Gjeldene top-gooner")
+                st.write(f"**{top_player['name']}**")
+                st.write(f"Rating: {top_player['hltvRating']:.2f}")
+
+            with col2:
+                st.write("### Gjeldende pils-bitch")
+                st.write(f"**{low_player['name']}**")
+                st.write(f"Rating: {low_player['hltvRating']:.2f}")
+
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")
 
@@ -265,7 +301,7 @@ def Stats():
                 st.plotly_chart(fig)
 
                 # **Add CSV Download Button**
-                if st.button("Download Full Game Stats CSV"):
+                if st.button("Klikk her for å laste al gamedata i CSV format"):
                     Download_Game_Stats()
 
             else:
@@ -278,7 +314,7 @@ def Download_Game_Stats():
     try:
         all_game_data = []
 
-        with st.spinner("Fetching all game data..."):
+        with st.spinner("Henter game data..."):
             games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
 
             for game in games_in_memory:
@@ -315,7 +351,7 @@ def Download_Game_Stats():
 
             # Display download button
             st.download_button(
-                label="Download CSV",
+                label="Klikk her for å laste ned CSV fil",
                 data=csv_data,
                 file_name="all_game_stats.csv",
                 mime="text/csv"
@@ -329,7 +365,7 @@ def Download_Game_Stats():
 
 
 # **Navigation Buttons**
-st.markdown("<h3 style='text-align: center;'>Navigation</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
 
