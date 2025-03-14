@@ -500,11 +500,20 @@ def Download_Game_Stats():
     except Exception as e:
         st.error(f"An error occurred while exporting the CSV: {e}")
 
-
+def motivation_page():
+    st.title("Motivation 🎥")
+    
+    st.write("Get hyped before the next game! Watch this motivation video:")
+    
+    st.markdown("""
+    <iframe width="560" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0"  
+    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"  
+    allowfullscreen></iframe>  
+    """, unsafe_allow_html=True)
 # **Navigation Buttons**
 st.markdown("<h3 style='text-align: center;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     if st.button("🏠 Hjem", use_container_width=True):
@@ -518,6 +527,10 @@ with col3:
     if st.button("📊 Stats", use_container_width=True):
         st.session_state["page"] = "Stats"
 
+with col4:
+    if st.button("Motivasjon", use_container_width=True):
+        st.session_state["page"] = "Motivasjon"
+
 # **Handle Page Display**
 if "page" not in st.session_state:
     st.session_state["page"] = "Home"  # Default page
@@ -528,3 +541,5 @@ elif st.session_state["page"] == "Input Data":
     input_data_page()
 elif st.session_state["page"] == "Stats":
     Stats()
+elif st.session_state["page"] == "Motivasjon":
+    motivation_page()
