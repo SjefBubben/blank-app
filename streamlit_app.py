@@ -217,7 +217,7 @@ def Stats():
 
         with st.spinner("Fetching games and stats...And checking if Tobias is gay"):
 
-            games_in_memory = get_cached_games()
+            games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
 
             for game in games_in_memory:
                 game_id = game["game_id"]
