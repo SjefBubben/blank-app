@@ -91,7 +91,7 @@ def fetch_new_games():
         game["details"] = game_stats_batch.get(game["game_id"], {})
 
     return new_games
-@st.cache_data(ttl=5 * 5)
+@st.cache_data(ttl=10 * 10)
 def get_cached_games():
     games_in_memory = fetch_games_within_last_48_hours()
     return games_in_memory
@@ -225,7 +225,7 @@ def input_data_page():
     except Exception as e:
         st.error(f"An error occurred while processing game data: {e}")
 
-@st.cache_data(ttl=2 * 2)
+@st.cache_data(ttl=5 * 5)
 def get_cached_konsum(game_id):
     konsum_in_memory = fetch_konsum_data_for_game(game_id)
     return konsum_in_memory
