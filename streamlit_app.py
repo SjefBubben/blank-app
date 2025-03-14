@@ -512,10 +512,15 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 #UX
-st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
-
-# Centered Logo
-st.image("bubblogo.png", use_container_width=False)
+st.markdown(
+    """
+    <div style="display: flex; align-items: center; justify-content: center;">
+        <h1 style='font-weight: bold;'>Bubberne Gaming™</h1>
+        <img src="bubblogo.png" style="height: 40px; margin-left: 10px;">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
 col1, col2, col3, col4 = st.columns(4)
