@@ -305,7 +305,7 @@ def Stats():
                 df = df.iloc[::-1]
 
                 # Plot the bar chart
-                fig = px.bar(df, x="Player", y=f"{selected_stat_display_name}", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
+                fig = px.bar(df, x="Player", y=selected_stat_display_name, color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
                 st.plotly_chart(fig)
 
                 # **Add CSV Download Button**
