@@ -110,7 +110,7 @@ def home_page():
             time.sleep(2)
             new_games = fetch_new_games()  # Only fetch games from the last 48 hours
 
-        games_in_memory = get_cached_games()
+        games_in_memory = sorted(st.session_state["games_data"], key=lambda game: game["game_finished_at"], reverse=True)
 
         if new_games:
             st.write("### Nye bubbegames")
@@ -180,6 +180,7 @@ def home_page():
                     """, unsafe_allow_html=True)
 
                 with col2:
+                    # Decide which low player to show
                     low_player_display = second_low_player['name'] if second_low_player else low_player['name']
                     st.markdown(f"""
                         <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
