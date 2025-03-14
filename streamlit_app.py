@@ -110,7 +110,7 @@ def home_page():
             time.sleep(2)
             new_games = fetch_new_games()  # Only fetch games from the last 48 hours
 
-        games_in_memory = sorted(st.session_state["games_data"], key=lambda game: game["game_finished_at"], reverse=True)
+        games_in_memory = get_cached_games()
 
         if new_games:
             st.write("### Nye bubbegames")
@@ -127,6 +127,7 @@ def home_page():
             st.write("### Ingen nye bubbegames funnet.")
             st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
 
+        games_in_memory.sort(key=lambda x: x["game_finished_at"], reverse=True)
         # Extract the highest and lowest rated players in the most recent game
         top_player = None
         low_player = None
