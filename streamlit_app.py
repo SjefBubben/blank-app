@@ -161,10 +161,44 @@ def home_page():
                     st.session_state.previous_game_id = game_id
 
         else:
-            # If no new games, use the previous session's values
-            if 'previous_low_player' in st.session_state:
-                low_player = st.session_state.previous_low_player
-                top_player = st.session_state.previous_top_player
+            # If no new games, check the previous two games in memory
+            if len(games_in_memory) >= 2:
+                # Get the last two games
+                last_two_games = games_in_memory[:2]
+
+                # Loop through the last two games and find the top and low players
+                all_players = []
+
+                for game in last_two_games:
+                    game_id = game["game_id"]
+                    game_details = fetch_game_details(game_id)
+
+                    for player in game_details.get("playerStats", []):
+                        if player["name"] in ALLOWED_PLAYERS:
+                            all_players.append({
+                                "name": player["name"],
+                                "reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
+                            })
+
+                # Sort players by reaction time (fastest first)
+                all_players.sort(key=itemgetter("reactionTime"))
+
+                if all_players:
+                    # Determine the top and low player from the last two games
+                    top_player = all_players[0]  # Highest reaction time (bad player)
+                    low_player = all_players[-1]  # Lowest reaction time (good player)
+
+                    # If the low player is the same as the last game, select the second-lowest
+                    if 'previous_low_player' in st.session_state and st.session_state.previous_low_player == low_player['name']:
+                        if len(all_players) > 1:
+                            second_low_player = all_players[-2]  # Second-lowest player
+                            low_player = second_low_player
+                        else:
+                            # If there's only one player, we keep the low player as is
+                            low_player = all_players[0]
+
+                    # Store the current low player for comparison in the next session
+                    st.session_state.previous_low_player = low_player['name']
 
         # Display the cards with a polished design
         col1, col2 = st.columns(2)
