@@ -506,13 +506,13 @@ def motivation_page():
     st.write("Bubbesnacks:")
     
     st.markdown("""
-    <iframe width="700" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0"  
+    <iframe width="600" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0"  
     frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"  
     allowfullscreen></iframe>  
     """, unsafe_allow_html=True)
 
 #UX
-st.image("bubblogo.png", width=50)
+st.image("bubblogo2.png", width=75)
 # Add the header text
 st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
 
