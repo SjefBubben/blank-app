@@ -141,18 +141,26 @@ def home_page():
             top_player = max(all_players, key=itemgetter("hltvRating"))
             low_player = min(all_players, key=itemgetter("hltvRating"))
 
-            # Display the cards
+            # Display the cards with a polished design
             col1, col2 = st.columns(2)
 
             with col1:
-                st.write("### Gjeldene top-gooner")
-                st.write(f"**{top_player['name']}**")
-                st.write(f"Rating: {top_player['hltvRating']:.2f}")
+                st.markdown(f"""
+                    <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                        <h3>💪 Gjeldende top-gooner</h3>
+                        <h4><strong>{top_player['name']}</strong></h4>
+                        <p style="font-size: 18px;">HLTV Rating: <strong>{top_player['hltvRating']:.2f}</strong></p>
+                    </div>
+                """, unsafe_allow_html=True)
 
             with col2:
-                st.write("### Gjeldende pils-bitch")
-                st.write(f"**{low_player['name']}**")
-                st.write(f"Rating: {low_player['hltvRating']:.2f}")
+                st.markdown(f"""
+                    <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                        <h3>🍺 Gjeldende pils-bitch</h3>
+                        <h4><strong>{low_player['name']}</strong></h4>
+                        <p style="font-size: 18px;">HLTV Rating: <strong>{low_player['hltvRating']:.2f}</strong></p>
+                    </div>
+                """, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")
@@ -370,11 +378,11 @@ st.markdown("<h3 style='text-align: center;'>Welcome to Bubberne Gaming</h3>", u
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🏠 Home", use_container_width=True):
+    if st.button("🏠 Hjem", use_container_width=True):
         st.session_state["page"] = "Home"
 
 with col2:
-    if st.button("📝 Input Data", use_container_width=True):
+    if st.button("📝 Input BubbeData", use_container_width=True):
         st.session_state["page"] = "Input Data"
 
 with col3:
