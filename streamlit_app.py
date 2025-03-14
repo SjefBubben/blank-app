@@ -214,20 +214,18 @@ reverse_mapping = {v: k for k, v in stat_display_mapping.items()}
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)  # Return 0 if the stat is not found
 
-# **Bar Chart Page**
 def Stats():
     st.header("Game Stats Bar Chart")
 
     try:
-        # User selects the stat for visualization
+        # Stat selection dropdown
         stat_options = list(stat_display_mapping.keys()) + ["Beer", "Water"]
         selected_stat_display_name = st.selectbox("Select a stat to display in the bar chart:", stat_options)
 
-        # Get actual stat key from the selected display name
+        # Get the actual stat key
         selected_stat = stat_display_mapping.get(selected_stat_display_name, selected_stat_display_name.lower())
 
-        all_game_data = []  # Stores full dataset for CSV export
-        player_stats = []  # Stores data for charting
+        player_stats = []
 
         with st.spinner("Fetching games and stats..."):
 
@@ -241,64 +239,119 @@ def Stats():
 
                 for player in game_details.get("playerStats", []):
                     if player["name"] in ALLOWED_PLAYERS:
-                        # Prepare a full stats dictionary for CSV
+                        # Get stat value
+                        if selected_stat == "beer":
+                            stat_value = konsum_data.get(player["name"], {}).get("beer", 0)
+                        elif selected_stat == "water":
+                            stat_value = konsum_data.get(player["name"], {}).get("water", 0)
+                        else:
+                            stat_value = get_player_stat(player, selected_stat)
+
+                        # Add to player stats list
+                        player_stats.append({
+                            "Game": map_name,
+                            "Player": player["name"],
+                            "Stat Type": selected_stat_display_name,
+                            "Stat Value": stat_value
+                        })
+
+            if player_stats:
+                # Convert stats to DataFrame for plotting
+                df = pd.DataFrame(player_stats)
+                df = df.iloc[::-1]
+
+                # Plot the bar chart
+                fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
+                st.plotly_chart(fig)
+
+                # **Add CSV Download Button**
+                if st.button("Download Full Game Stats CSV"):
+                    Download_Game_Stats()
+
+            else:
+                st.warning("No data available.")
+
+    except Exception as e:
+        st.error(f"An error occurred while generating the bar chart: {e}")
+
+def Download_Game_Stats():
+    try:
+        all_game_data = []
+
+        with st.spinner("Fetching all game data..."):
+            games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
+
+            for game in games_in_memory:
+                game_id = game["game_id"]
+                map_name = game["map_name"]
+                game_details = fetch_game_details(game_id)
+                konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
+
+                for player in game_details.get("playerStats", []):
+                    if player["name"] in ALLOWED_PLAYERS:
+                        # Prepare full stats dictionary for CSV
                         player_data = {
                             "Game": map_name,
                             "Player": player["name"],
                             "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
                         }
 
-                        # Add all stat_display_mapping stats
+                        # Add all game stats
                         for display_name, stat_key in stat_display_mapping.items():
                             player_data[display_name] = get_player_stat(player, stat_key)
 
-                        # Add beer & water consumption
+                        # Add Beer & Water
                         player_data["Beer"] = konsum_data.get(player["name"], {}).get("beer", 0)
                         player_data["Water"] = konsum_data.get(player["name"], {}).get("water", 0)
 
-                        all_game_data.append(player_data)  # Store for CSV export
+                        all_game_data.append(player_data)
 
-                        # Prepare data for the bar chart
-                        if selected_stat in player_data:
-                            player_stats.append({
-                                "Game": map_name,
-                                "Player": player["name"],
-                                "Stat Type": selected_stat_display_name,
-                                "Stat Value": player_data[selected_stat],
-                            })
+        if all_game_data:
+            # Convert to DataFrame and export to CSV
+            df_full = pd.DataFrame(all_game_data)
+            csv_buffer = StringIO()
+            df_full.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
 
-        if player_stats:
-            # Convert stats to DataFrame for charting
-            df_chart = pd.DataFrame(player_stats)
+            # Display download button
+            st.download_button(
+                label="Download CSV",
+                data=csv_data,
+                file_name="all_game_stats.csv",
+                mime="text/csv"
+            )
 
-            # Plot bar chart
-            fig = px.bar(df_chart, x="Player", y="Stat Value", color="Game", barmode="group",
-                         title=f"{selected_stat_display_name} per Player in Recent Games")
-            st.plotly_chart(fig)
-
-        # Convert full game stats to CSV
-        df_full = pd.DataFrame(all_game_data)
-        csv_buffer = StringIO()
-        df_full.to_csv(csv_buffer, index=False)
-        csv_data = csv_buffer.getvalue()
-
-        # CSV download button for all stats
-        st.download_button(
-            label="Download Full Game Stats CSV",
-            data=csv_data,
-            file_name="all_game_stats.csv",
-            mime="text/csv"
-        )
+        else:
+            st.warning("No game data available for download.")
 
     except Exception as e:
-        st.error(f"An error occurred while generating the bar chart: {e}")
+        st.error(f"An error occurred while exporting the CSV: {e}")
 
-# **Navigation**
-navigation = st.radio("Navigate to:", ("Home", "Input Data", "Stats"))
 
-if navigation == "Home":
+# **Navigation Buttons**
+st.markdown("<h3 style='text-align: center;'>Navigation</h3>", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    if st.button("🏠 Home", use_container_width=True):
+        st.session_state["page"] = "Home"
+
+with col2:
+    if st.button("📝 Input Data", use_container_width=True):
+        st.session_state["page"] = "Input Data"
+
+with col3:
+    if st.button("📊 Stats", use_container_width=True):
+        st.session_state["page"] = "Stats"
+
+# **Handle Page Display**
+if "page" not in st.session_state:
+    st.session_state["page"] = "Home"  # Default page
+
+if st.session_state["page"] == "Home":
     home_page()
-elif navigation == "Input Data":
+elif st.session_state["page"] == "Input Data":
     input_data_page()
-elif navigation == "Stats":
+elif st.session_state["page"] == "Stats":
     Stats()
