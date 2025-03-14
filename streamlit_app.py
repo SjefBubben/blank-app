@@ -513,10 +513,33 @@ def motivation_page():
 
 #UX
 st.markdown("""
-    <div style="display: flex; justify-content: center; align-items: center; text-align: center;">
-        <img src="bubblogo.png" width="80" style="margin-right: 15px;"/>
-        <h1 style="font-weight: bold; margin: 0;">Bubberne Gaming™</h1>
+    <style>
+        .header-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            flex-wrap: wrap;
+        }
+        .header-container img {
+            margin-right: 15px;
+            width: 150px;  # Adjust image size as needed
+        }
+        .header-container h1 {
+            font-weight: bold;
+            margin: 0;
+        }
+    </style>
+    <div class="header-container">
+""", unsafe_allow_html=True)
+
+# Display the image using st.image
+st.image("bubblogo.png", width=150)
+
+# Add the header text
+st.markdown("""
     </div>
+    <h1 style="text-align: center; font-weight: bold;">Bubberne Gaming™</h1>
 """, unsafe_allow_html=True)
 
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
