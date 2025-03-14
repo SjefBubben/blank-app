@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
+from io import StringIO
 from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
 
 # Base API URLs
@@ -120,12 +121,25 @@ def home_page():
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")
 
-# **Input Data Page**
+# Function to refresh data manually
+def refresh_data():
+    st.session_state["games_data"] = get_cached_games()
+
 def input_data_page():
     st.header("Input BubbeData")
 
+    # Add a refresh button at the top
+    if st.button("Refresh Data from Sheets"):
+        refresh_data()
+        st.experimental_rerun()
+
     try:
-        games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
+        # Load games only if not already in session state
+        if "games_data" not in st.session_state:
+            st.session_state["games_data"] = get_cached_games()
+
+        # Sort games by newest first
+        games_in_memory = sorted(st.session_state["games_data"], key=lambda game: game["game_finished_at"], reverse=True)
 
         for game in games_in_memory:
             game_id = game["game_id"]
@@ -138,6 +152,7 @@ def input_data_page():
 
             match_time = game_finished_at.strftime("%d.%m.%y %H:%M")
 
+            # Store konsum data in session state to prevent reloading
             if game_id not in st.session_state:
                 st.session_state[game_id] = fetch_konsum_data_for_game(game_id) or {}
 
@@ -153,15 +168,16 @@ def input_data_page():
                         previous_beer = konsum_data.get(player["name"], {}).get('beer', 0)
                         previous_water = konsum_data.get(player["name"], {}).get('water', 0)
 
-                        # Add number input for both beer and water (as glasses)
+                        # Input fields for beer and water
                         beers = st.number_input(f"How many pils på {player['name']}?", min_value=0, value=previous_beer, step=1, key=f"{player['name']}-beer-{game_id}")
                         water = st.number_input(f"How mye hydrering på {player['name']}?", min_value=0, value=previous_water, step=1, key=f"{player['name']}-water-{game_id}")
 
-                        # If either value changes, save them
+                        # Save data only if values change
                         if beers != previous_beer or water != previous_water:
                             save_konsum_data(game_id, player["name"], beers, water)
                             st.session_state[game_id][player["name"]] = {'beer': beers, 'water': water}
                             st.success(f"Data for {player['name']} updated: {beers} Beers, {water} Glasses of Water")
+
     except Exception as e:
         st.error(f"An error occurred while processing game data: {e}")
 
@@ -239,14 +255,35 @@ def Stats():
                             stat_value = get_player_stat(player, selected_stat)
 
                         # Add to the player_stats list
-                        player_stats.append({"Game": map_name, "Player": player["name"], "Stat": stat_value})
+                        player_stats.append({
+                            "Game": map_name,
+                            "Player": player["name"],
+                            "Stat Type": selected_stat_display_name,
+                            "Stat Value": stat_value
+                        })
 
             if player_stats:
                 # Convert the stats to a DataFrame for Plotly charting
                 df = pd.DataFrame(player_stats)
                 df = df.iloc[::-1]
-                fig = px.bar(df, x="Player", y="Stat", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
+
+                # Plot the bar chart
+                fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
                 st.plotly_chart(fig)
+
+                # Convert DataFrame to CSV format
+                csv_buffer = StringIO()
+                df.to_csv(csv_buffer, index=False)
+                csv_data = csv_buffer.getvalue()
+
+                # Add download button for CSV
+                st.download_button(
+                    label="Download CSV",
+                    data=csv_data,
+                    file_name=f"{selected_stat_display_name}_stats.csv",
+                    mime="text/csv"
+                )
+
             else:
                 st.warning("Ingen data tilgjengelig")
 
