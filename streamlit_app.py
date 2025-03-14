@@ -515,7 +515,7 @@ def motivation_page():
 st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
 
 # Centered Logo
-st.image("bubblogo.png", use_column_width=False)
+st.image("bubblogo.png", use_container_width=False)
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
 col1, col2, col3, col4 = st.columns(4)
