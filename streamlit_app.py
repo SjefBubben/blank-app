@@ -9,6 +9,14 @@ from datetime import datetime, timedelta
 from io import StringIO
 from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
 
+
+st.markdown(
+    """
+    <link rel="icon" href="bubblogo.png" type="image/png">
+    """, 
+    unsafe_allow_html=True
+)
+
 # Base API URLs
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
