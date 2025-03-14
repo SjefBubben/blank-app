@@ -520,7 +520,7 @@ with col1:
 
 with col2:
     # Display the text next to the image
-    st.markdown("<h1 style='text-align: left; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
 
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
