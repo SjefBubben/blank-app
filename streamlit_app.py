@@ -127,16 +127,21 @@ def home_page():
             st.write("### Ingen nye bubbegames funnet.")
             st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
 
-        # Extract the highest and lowest rated players in the last 48 hours of games
+        # Extract the highest and lowest rated players in the most recent game
         top_player = None
         low_player = None
+        second_low_player = None
 
-        all_players = []
+        if games_in_memory:  # Ensure there is at least one game
+            # Get the most recent game
+            latest_game = games_in_memory[0]  # Assuming games_in_memory is sorted by game_finished_at
 
-        for game in games_in_memory:
-            game_id = game["game_id"]
+            game_id = latest_game["game_id"]
             game_details = fetch_game_details(game_id)
 
+            all_players = []
+
+            # Loop through players in the most recent game
             for player in game_details.get("playerStats", []):
                 if player["name"] in ALLOWED_PLAYERS:
                     all_players.append({
@@ -144,31 +149,44 @@ def home_page():
                         "hltvRating": player.get("hltvRating", 0)  # Use 0 if rating is missing
                     })
 
-        # Sort players by HLTV rating
-        if all_players:
-            top_player = max(all_players, key=itemgetter("hltvRating"))
-            low_player = min(all_players, key=itemgetter("hltvRating"))
+            # Sort players by HLTV rating
+            all_players.sort(key=itemgetter("hltvRating"))
 
-            # Display the cards with a polished design
-            col1, col2 = st.columns(2)
+            if all_players:
+                # Determine the top and low player for the current game
+                top_player = all_players[-1]  # Highest rating
+                low_player = all_players[0]  # Lowest rating
 
-            with col1:
-                st.markdown(f"""
-                    <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                        <h3>💪 Gjeldende top-gooner</h3>
-                        <h4><strong>{top_player['name']}</strong></h4>
-                        <p style="font-size: 18px;">HLTV Rating: <strong>{top_player['hltvRating']:.2f}</strong></p>
-                    </div>
-                """, unsafe_allow_html=True)
+                # If the low player is the same as last game, select the second-lowest
+                if 'previous_low_player' in st.session_state and st.session_state.previous_low_player == low_player['name']:
+                    if len(all_players) > 1:
+                        second_low_player = all_players[1]  # Second-lowest player
+                        low_player = second_low_player
+                    else:
+                        # If there's only one player, we'll just keep them as the low player
+                        low_player = all_players[0]
+                # Store the current low player for comparison in the next session
+                st.session_state.previous_low_player = low_player['name']
 
-            with col2:
-                st.markdown(f"""
-                    <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                        <h3>🍺 Gjeldende pils-bitch</h3>
-                        <h4><strong>{low_player['name']}</strong></h4>
-                        <p style="font-size: 18px;">HLTV Rating: <strong>{low_player['hltvRating']:.2f}</strong></p>
-                    </div>
-                """, unsafe_allow_html=True)
+                # Display the cards with a polished design
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown(f"""
+                        <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                            <h3>💪 Gjeldende top-gooner</h3>
+                            <h4><strong>{top_player['name']}</strong></h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                with col2:
+                    low_player_display = second_low_player['name'] if second_low_player else low_player['name']
+                    st.markdown(f"""
+                        <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                            <h3>🍺 Gjeldende pils-bitch</h3>
+                            <h4><strong>{low_player_display}</strong></h4>
+                        </div>
+                    """, unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")
