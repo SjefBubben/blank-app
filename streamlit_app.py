@@ -514,9 +514,8 @@ def motivation_page():
 #UX
 st.image("bubblogo2.png", width=75)
 # Add the header text
-st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
 
-st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
 col1, col2, col3, col4 = st.columns(4)
 
