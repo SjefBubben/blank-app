@@ -501,17 +501,19 @@ def Download_Game_Stats():
         st.error(f"An error occurred while exporting the CSV: {e}")
 
 def motivation_page():
-    st.title("Motivation 🎥")
+    st.title("Get Skibid going")
     
-    st.write("Get hyped before the next game! Watch this motivation video:")
+    st.write("Bubbesnacks:")
     
     st.markdown("""
     <iframe width="560" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0"  
     frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"  
     allowfullscreen></iframe>  
     """, unsafe_allow_html=True)
+
+st.set_page_config(page_title="Bubberne Gaming™")
 # **Navigation Buttons**
-st.markdown("<h3 style='text-align: center;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -528,7 +530,7 @@ with col3:
         st.session_state["page"] = "Stats"
 
 with col4:
-    if st.button("Motivasjon", use_container_width=True):
+    if st.button("🚽 Motivasjon", use_container_width=True):
         st.session_state["page"] = "Motivasjon"
 
 # **Handle Page Display**
