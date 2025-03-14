@@ -142,7 +142,7 @@ def home_page():
                 top_player = all_players[0]  # The player with the fastest reaction time
                 low_player = all_players[-1]  # The player with the slowest reaction time
 
-                # Check if there is a previous low player stored in session_state
+                # Check if the previous low player is stored in session_state
                 if 'previous_low_player' in st.session_state:
                     # If the low player from the previous game is the same, we should use the second-lowest player
                     if st.session_state.previous_low_player == low_player['name']:
@@ -153,8 +153,13 @@ def home_page():
                             # If there is only one player, we have to stick with them as the low player
                             low_player = all_players[0]
                     else:
-                        # If the low player is different from the previous game, reset the low player
+                        # If the low player is different from the previous game, reset the second-low player logic
                         second_low_player = None
+                        low_player = all_players[-1]  # Assign the low player normally
+                else:
+                    # If there is no previous low player in the session, we just assign the current low player
+                    second_low_player = None
+                    low_player = all_players[-1]
 
                 # Store the current low player for the next check
                 st.session_state.previous_low_player = low_player['name']
