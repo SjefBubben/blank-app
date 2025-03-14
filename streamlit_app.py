@@ -14,7 +14,7 @@ GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
 STEAM_ID = "76561197983741618"
 
 # Allowed player names
-ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish"}
+ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish", "Zohan"}
 
 # Fetch profile data
 def fetch_profile(steam_id):
@@ -125,7 +125,7 @@ def input_data_page():
     st.header("Input BubbeData")
 
     try:
-        games_in_memory = get_cached_games()
+        games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
 
         for game in games_in_memory:
             game_id = game["game_id"]
@@ -199,7 +199,7 @@ def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)  # Return 0 if the stat is not found
 
 # **Bar Chart Page**
-def bar_chart_page():
+def Stats():
     st.header("Game Stats Bar Chart")
 
     try:
@@ -248,17 +248,17 @@ def bar_chart_page():
                 fig = px.bar(df, x="Player", y="Stat", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
                 st.plotly_chart(fig)
             else:
-                st.warning("No data available to display on the chart.")
+                st.warning("Ingen data tilgjengelig")
 
     except Exception as e:
         st.error(f"An error occurred while generating the bar chart: {e}")
 
 # **Navigation**
-navigation = st.radio("Navigate to:", ("Home", "Input Data", "Bar Chart"))
+navigation = st.radio("Navigate to:", ("Home", "Input Data", "Stats"))
 
 if navigation == "Home":
     home_page()
 elif navigation == "Input Data":
     input_data_page()
-elif navigation == "Bar Chart":
-    bar_chart_page()
+elif navigation == "Stats":
+    Stats()
