@@ -147,11 +147,11 @@ def home_page():
                 if player["name"] in ALLOWED_PLAYERS:
                     all_players.append({
                         "name": player["name"],
-                        "hltvRating": player.get("hltvRating", 0)  # Use 0 if rating is missing
+                        "reactionTime": player.get("reactionTime", 0)  # Use 0 if rating is missing
                     })
 
             # Sort players by HLTV rating
-            all_players.sort(key=itemgetter("hltvRating"))
+            all_players.sort(key=itemgetter("reactionTime"))
 
             if all_players:
                 # Determine the top and low player for the current game
@@ -175,7 +175,7 @@ def home_page():
                 with col1:
                     st.markdown(f"""
                         <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                            <h3>💪 Gjeldende top-gooner</h3>
+                            <h3>💪 Raskeste gooner</h3>
                             <h4><strong>{top_player['name']}</strong></h4>
                         </div>
                     """, unsafe_allow_html=True)
@@ -185,7 +185,7 @@ def home_page():
                     low_player_display = second_low_player['name'] if second_low_player else low_player['name']
                     st.markdown(f"""
                         <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                            <h3>🍺 Gjeldende pils-bitch</h3>
+                            <h3>🍺 Tregeste pils-bitch</h3>
                             <h4><strong>{low_player_display}</strong></h4>
                         </div>
                     """, unsafe_allow_html=True)
