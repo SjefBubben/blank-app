@@ -146,22 +146,24 @@ def home_page():
                 low_player = all_players[0]  # Lowest reaction time
 
                 # Logic for the "Pils bitch" (high reaction time player)
-                if 'previous_top_player' in st.session_state:
-                    # If the current top player is the same as the previous one, use the second-highest player
-                    if st.session_state.previous_top_player == top_player['name']:
-                        # Ensure there is at least 2 players to choose from
+                if 'previous_game_id' in st.session_state and st.session_state.previous_game_id == game_id:
+                    # If the game_id is the same as the previous game, use the previous players
+                    if 'previous_top_player' in st.session_state:
+                        top_player = st.session_state.previous_top_player
+                        low_player = st.session_state.previous_low_player
+                else:
+                    # If it's a new game, check for the second-lowest player if the top player is the same
+                    if 'previous_top_player' in st.session_state and st.session_state.previous_top_player == top_player['name']:
                         if len(all_players) > 1:
                             second_low_player = all_players[-2]  # Second-highest reaction time
                             top_player = second_low_player
                         else:
-                            # If only one player is available, keep them
                             top_player = low_player
-                    else:
-                        # If it's a different player, update the stored top player
-                        st.session_state.previous_top_player = top_player['name']
-                else:
-                    # No previous top player, set the current one
+
+                    # Store the current top and low players for comparison in the next session
                     st.session_state.previous_top_player = top_player['name']
+                    st.session_state.previous_low_player = low_player['name']
+                    st.session_state.previous_game_id = game_id
 
                 # Display the cards with a polished design
                 col1, col2 = st.columns(2)
