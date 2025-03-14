@@ -111,22 +111,7 @@ def home_page():
             new_games = fetch_new_games()  # Only fetch games from the last 48 hours
 
         games_in_memory = get_cached_games()
-
-        if new_games:
-            st.write("### Nye bubbegames")
-            for new_game in new_games:
-                game_id = new_game["game_id"]
-                map_name = new_game["map_name"]
-                match_result = new_game["match_result"]
-                scores = new_game["scores"]
-                st.write(f"**{map_name} - {match_result.capitalize()} ({scores[0]}:{scores[1]})**")
-                st.write(f"Game ID: {game_id}")
-
-            st.write(f"### Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
-        else:
-            st.write("### Ingen nye bubbegames funnet.")
-            st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
-
+        
         games_in_memory.sort(key=lambda x: x["game_finished_at"], reverse=True)
         # Extract the highest and lowest rated players in the most recent game
         top_player = None
@@ -189,6 +174,20 @@ def home_page():
                             <h4><strong>{low_player_display}</strong></h4>
                         </div>
                     """, unsafe_allow_html=True)
+        if new_games:
+            st.write("### Nye bubbegames")
+            for new_game in new_games:
+                game_id = new_game["game_id"]
+                map_name = new_game["map_name"]
+                match_result = new_game["match_result"]
+                scores = new_game["scores"]
+                st.write(f"**{map_name} - {match_result.capitalize()} ({scores[0]}:{scores[1]})**")
+                st.write(f"Game ID: {game_id}")
+
+            st.write(f"### Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
+        else:
+            st.write("### Ingen nye bubbegames funnet.")
+            st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
 
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")
