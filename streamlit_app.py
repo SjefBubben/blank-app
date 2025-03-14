@@ -155,13 +155,13 @@ def home_page():
 
             if all_players:
                 # Determine the top and low player for the current game
-                top_player = all_players[-1]  # Highest rating
-                low_player = all_players[0]  # Lowest rating
+                top_player = all_players[0]  # Highest rating
+                low_player = all_players[-1]  # Lowest rating
 
                 # If the low player is the same as last game, select the second-lowest
                 if 'previous_low_player' in st.session_state and st.session_state.previous_low_player == low_player['name']:
                     if len(all_players) > 1:
-                        second_low_player = all_players[1]  # Second-lowest player
+                        second_low_player = all_players[-2]  # Second-lowest player
                         low_player = second_low_player
                     else:
                         # If there's only one player, we'll just keep them as the low player
