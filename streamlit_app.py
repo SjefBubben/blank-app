@@ -173,7 +173,7 @@ def input_data_page():
     st.header("Input BubbeData")
 
     # Add a refresh button at the top
-    if st.button("Refresh Data from Sheets"):
+    if st.button("Refresh Data fra Sheets"):
         refresh_data()
         st.experimental_rerun()
 
@@ -271,7 +271,7 @@ def Stats():
 
         player_stats = []
 
-        with st.spinner("Fetching games and stats..."):
+        with st.spinner("Fetching games and stats...Checking if Tobias gay?"):
 
             games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
 
@@ -305,11 +305,11 @@ def Stats():
                 df = df.iloc[::-1]
 
                 # Plot the bar chart
-                fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
+                fig = px.bar(df, x="Player", y=f"{selected_stat_display_name}", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
                 st.plotly_chart(fig)
 
                 # **Add CSV Download Button**
-                if st.button("Klikk her for å laste al gamedata i CSV format"):
+                if st.button("Klikk her for å laste gamedata i CSV format"):
                     Download_Game_Stats()
 
             else:
