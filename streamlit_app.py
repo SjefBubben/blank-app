@@ -142,24 +142,27 @@ def home_page():
                 top_player = all_players[0]  # The player with the fastest reaction time
                 low_player = all_players[-1]  # The player with the slowest reaction time
 
-                # Check if the previous low player is stored in session_state
-                if 'previous_low_player' in st.session_state:
-                    # If the low player from the previous game is the same, we should use the second-lowest player
-                    if st.session_state.previous_low_player == low_player['name']:
-                        if len(all_players) > 1:
-                            second_low_player = all_players[-2]  # Second-lowest player
-                            low_player = second_low_player
+                # Check if the current game ID is different from the previous one stored in session_state
+                if 'previous_game_id' in st.session_state and st.session_state.previous_game_id == game_id:
+                    # If the game hasn't changed, do not change the low player logic
+                    if 'previous_low_player' in st.session_state:
+                        # If the low player from the previous game is the same, use the second-lowest player
+                        if st.session_state.previous_low_player == low_player['name']:
+                            if len(all_players) > 1:
+                                second_low_player = all_players[-2]  # Second-lowest player
+                                low_player = second_low_player
+                            else:
+                                # If there is only one player, stick with them as the low player
+                                low_player = all_players[0]
                         else:
-                            # If there is only one player, we have to stick with them as the low player
-                            low_player = all_players[0]
-                    else:
-                        # If the low player is different from the previous game, reset the second-low player logic
-                        second_low_player = None
-                        low_player = all_players[-1]  # Assign the low player normally
+                            # If the low player is different, reset second_low_player
+                            second_low_player = None
+                            low_player = all_players[-1]
                 else:
-                    # If there is no previous low player in the session, we just assign the current low player
+                    # If it's a new game, reset the second_low_player logic
                     second_low_player = None
-                    low_player = all_players[-1]
+                    # Store the current low player for comparison in the next session
+                    st.session_state.previous_game_id = game_id
 
                 # Store the current low player for the next check
                 st.session_state.previous_low_player = low_player['name']
