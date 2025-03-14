@@ -511,7 +511,7 @@ def motivation_page():
     allowfullscreen></iframe>  
     """, unsafe_allow_html=True)
 
-st.set_page_config(page_title="Bubberne Gaming™")
+st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
 # **Navigation Buttons**
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 
