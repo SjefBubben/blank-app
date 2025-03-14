@@ -512,15 +512,14 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 #UX
-col1, col2 = st.columns([1, 6])  # Define two columns with the first one smaller
+col1= st.columns([1])  # Define two columns with the first one smaller
 
 with col1:
     # Use st.image to display the logo with a defined width
     st.image("bubblogo.png", use_container_width=True)  # Adjust width to fit your needs
 
-with col2:
-    # Display the text next to the image
-    st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
+
+st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
 
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
