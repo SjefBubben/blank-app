@@ -512,15 +512,12 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 #UX
-col1, col2 = st.columns([1, 5])  # Adjust the ratio to control space distribution
-
-# In the first column, display the image
-with col1:
-    st.image("bubblogo.png", width=100)
-
-# In the second column, display the text
-with col2:
-    st.markdown("<h1 style='text-align: center; font-weight: bold; margin: 0;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
+st.markdown("""
+    <div style="display: flex; justify-content: center; align-items: center; text-align: center;">
+        <img src="bubblogo.png" width="80" style="margin-right: 15px;"/>
+        <h1 style="font-weight: bold; margin: 0;">Bubberne Gaming™</h1>
+    </div>
+""", unsafe_allow_html=True)
 
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
