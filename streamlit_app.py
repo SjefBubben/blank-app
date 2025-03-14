@@ -111,7 +111,7 @@ def home_page():
             new_games = fetch_new_games()  # Only fetch games from the last 48 hours
 
         games_in_memory = get_cached_games()
-
+        
         # Initialize players
         top_player = None
         low_player = None
@@ -137,25 +137,25 @@ def home_page():
                             "reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
                         })
 
-                # Sort players by reaction time (fastest first)
+                # Sort players by reaction time (ascending means fastest first)
                 all_players.sort(key=itemgetter("reactionTime"))
 
                 if all_players:
-                    # Determine the top and low player for the current game
-                    top_player = all_players[0]  # Highest reaction time (bad player)
-                    low_player = all_players[-1]  # Lowest reaction time (good player)
+                    # The worst player has the highest reaction time (top player)
+                    top_player = all_players[-1]  # Highest reaction time (bad player)
+                    low_player = all_players[0]  # Lowest reaction time (good player)
 
-                    # If the slowest player is the same as the last game, select the second-lowest
-                    if 'previous_low_player' in st.session_state and st.session_state.previous_low_player == low_player['name']:
-                        # If it's the same, select the second-lowest player
+                    # Check if the worst player is the same as the previous game's worst player
+                    if 'previous_top_player' in st.session_state and st.session_state.previous_top_player == top_player['name']:
+                        # If the top player is the same, switch to the second worst player
                         if len(all_players) > 1:
-                            second_low_player = all_players[-2]  # Second-lowest player
-                            low_player = second_low_player
+                            second_low_player = all_players[-2]  # Second-highest reaction time
+                            top_player = second_low_player  # Switch to the second worst player
                         else:
-                            low_player = all_players[0]  # If only one player, keep as is
-                    
-                    # Store the current low player for comparison in the next session
-                    st.session_state.previous_low_player = low_player['name']
+                            top_player = low_player  # If there's only one player, keep them
+
+                    # Store the current top player for comparison in the next session
+                    st.session_state.previous_top_player = top_player['name']
 
                     # Display the cards with a polished design
                     col1, col2 = st.columns(2)
@@ -169,7 +169,8 @@ def home_page():
                         """, unsafe_allow_html=True)
 
                     with col2:
-                        low_player_display = low_player['name'] if low_player != second_low_player else second_low_player['name']
+                        # If there's a second worst player available, show them
+                        low_player_display = second_low_player['name'] if second_low_player else low_player['name']
                         st.markdown(f"""
                             <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
                                 <h3>🍺 Tregeste pils-bitch</h3>
@@ -178,42 +179,42 @@ def home_page():
                         """, unsafe_allow_html=True)
 
         else:
-            # If no new games, check the previous two games but do not store anything in the session state
-            games_in_memory.sort(key=lambda x: x["game_finished_at"], reverse=True)
-
-            if games_in_memory:
+            # Handle the case where no new games are available
+            if len(games_in_memory) >= 2:
                 latest_game = games_in_memory[0]  # Most recent game
+                previous_game = games_in_memory[1]  # Previous game
 
-                game_id = latest_game["game_id"]
-                game_details = fetch_game_details(game_id)
+                # Fetch game details for the latest and previous games
+                latest_game_id = latest_game["game_id"]
+                previous_game_id = previous_game["game_id"]
 
-                all_players = []
+                latest_game_details = fetch_game_details(latest_game_id)
+                previous_game_details = fetch_game_details(previous_game_id)
 
-                # Loop through players in the most recent game
-                for player in game_details.get("playerStats", []):
-                    if player["name"] in ALLOWED_PLAYERS:
-                        all_players.append({
-                            "name": player["name"],
-                            "reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
-                        })
+                # Get players' stats from the latest and previous games
+                latest_players = [player for player in latest_game_details.get("playerStats", []) if player["name"] in ALLOWED_PLAYERS]
+                previous_players = [player for player in previous_game_details.get("playerStats", []) if player["name"] in ALLOWED_PLAYERS]
 
-                # Sort players by reaction time (fastest first)
-                all_players.sort(key=itemgetter("reactionTime"))
+                # Sort both lists by reaction time (ascending order)
+                latest_players.sort(key=itemgetter("reactionTime"))
+                previous_players.sort(key=itemgetter("reactionTime"))
 
-                if all_players:
-                    top_player = all_players[0]  # Highest reaction time (bad player)
-                    low_player = all_players[-1]  # Lowest reaction time (good player)
+                if latest_players and previous_players:
+                    # The worst player from the latest game
+                    top_player = latest_players[-1]
+                    low_player = latest_players[0]
 
-                    # Logic to check if the slowest player in this game is the same as last game
-                    if 'previous_low_player' in st.session_state and st.session_state.previous_low_player == low_player['name']:
-                        # If the slowest player is the same, select the second-lowest player
-                        if len(all_players) > 1:
-                            second_low_player = all_players[-2]  # Second-lowest player
-                            low_player = second_low_player
-                        else:
-                            low_player = all_players[0]  # If only one player, keep as is
-                    
-                    # Display the cards with a polished design (without updating the session state)
+                    # The worst player from the previous game
+                    previous_top_player = previous_players[-1]
+
+                    # If the worst player is the same as in the previous game, display the second worst
+                    if top_player['name'] == previous_top_player['name']:
+                        if len(latest_players) > 1:
+                            second_low_player = latest_players[-2]  # Second-worst
+                            top_player = second_low_player  # Switch to second worst
+
+                    # Do not update session state for this case
+                    # Display the cards
                     col1, col2 = st.columns(2)
 
                     with col1:
@@ -225,7 +226,8 @@ def home_page():
                         """, unsafe_allow_html=True)
 
                     with col2:
-                        low_player_display = low_player['name'] if low_player != second_low_player else second_low_player['name']
+                        # Decide which low player to show
+                        low_player_display = second_low_player['name'] if second_low_player else low_player['name']
                         st.markdown(f"""
                             <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
                                 <h3>🍺 Tregeste pils-bitch</h3>
