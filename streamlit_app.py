@@ -124,7 +124,7 @@ def home_page():
             if games_in_memory:  # Ensure there is at least one game
                 # Create a picker for the games based on timestamp and map
                 game_options = [
-                    f"{game['game_id']} - {game['map_name']} ({game['game_finished_at']})"
+                    f"{game['map_name']} ({datetime.strptime(game['game_finished_at'], '%Y-%m-%dT%H:%M:%S').strftime('%d.%m.%y %H:%M')})"
                     for game in games_in_memory
                 ]
                 selected_game = st.selectbox("Select a game", game_options)
@@ -197,7 +197,7 @@ def home_page():
             if games_in_memory:  # Ensure there are games in memory
                 # Create a picker for all games based on timestamp and map
                 game_options = [
-                    f"{game['game_id']} - {game['map_name']} ({game['game_finished_at']})"
+                    f"{game['map_name']} ({datetime.strptime(game['game_finished_at'], '%Y-%m-%dT%H:%M:%S').strftime('%d.%m.%y %H:%M')})"
                     for game in games_in_memory  # Use all games in memory
                 ]
                 selected_game = st.selectbox("Select a game", game_options)
