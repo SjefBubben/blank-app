@@ -260,6 +260,7 @@ def get_cached_konsum(game_id):
 
     # Mapping from display names to API keys
 stat_display_mapping = {
+    "K/D Ratio": 'kdRatio',
     "ADR (Average Damage per Round)": "dpr",  # "adr" is the display name, "dpr" is the key in the API response
     "HLTV Rating": "hltvRating",
     "Enemies Flashed": "flashbangThrown",
