@@ -512,7 +512,9 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 #UX
+st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
 st.image("bubblogo.png", width=150)  # Adjust width to fit your needs
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
