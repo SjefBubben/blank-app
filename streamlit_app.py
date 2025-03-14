@@ -512,11 +512,7 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 #UX
-col1= st.columns([1])  # Define two columns with the first one smaller
-
-with col1:
-    # Use st.image to display the logo with a defined width
-    st.image("bubblogo.png", use_container_width=True)  # Adjust width to fit your needs
+st.image("bubblogo.png", width=150)  # Adjust width to fit your needs
 
 
 st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
