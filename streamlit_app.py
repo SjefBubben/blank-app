@@ -520,7 +520,7 @@ with col1:
 
 # In the second column, display the text
 with col2:
-    st.markdown("<h1 style='font-weight: bold; margin: 0;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; font-weight: bold; margin: 0;'>Bubberne Gaming™</h1>", unsafe_allow_html=True)
 
 st.markdown("<h3 style='text-align: center; font-weight: bold;'>Welcome to Bubberne Gaming</h3>", unsafe_allow_html=True)
 #navigation
