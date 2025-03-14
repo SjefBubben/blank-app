@@ -512,7 +512,7 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 #UX
-col1, col2 = st.columns([1, 5])  # Adjust the ratio to control space distribution
+col1, col2 = st.columns([1, 3])  # Adjust the ratio to control space distribution
 
 # In the first column, display the image
 with col1:
