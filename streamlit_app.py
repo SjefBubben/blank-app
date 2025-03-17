@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import time
 from operator import itemgetter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from io import StringIO
 from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
 
@@ -34,8 +34,8 @@ def fetch_game_details(game_id):
     return None
 
 # Fetch new games and filter by the last 48 hours
-def fetch_new_games(days=2):  # Default to 2 days if not specified
-    games_in_db = fetch_games_within_last_48_hours()  # Fetch games already saved
+def fetch_new_games():
+    games_in_db = fetch_games_within_last_48_hours()  # Fetch games already saved in the last 48 hours
     saved_game_ids = {game['game_id'] for game in games_in_db}  # Set of known game IDs
 
     profile_data = fetch_profile(STEAM_ID)
@@ -46,7 +46,7 @@ def fetch_new_games(days=2):  # Default to 2 days if not specified
     new_games = []
     games_needing_stats = []  # For games that need detailed stats
 
-    current_time = datetime.utcnow()
+    current_time = datetime.utcnow()  # Get the current UTC time
 
     for game in games_from_api:
         game_id = game.get("gameId")
@@ -55,8 +55,8 @@ def fetch_new_games(days=2):  # Default to 2 days if not specified
             if game_finished_at_str:
                 game_finished_at = datetime.strptime(game_finished_at_str, "%Y-%m-%dT%H:%M:%S.%fZ")
 
-                # Only consider the game if it finished within the user-specified days
-                if game_finished_at > current_time - timedelta(days=days):
+                # Only consider the game if it finished within the last 48 hours
+                if game_finished_at > current_time - timedelta(hours=48):
                     new_games.append({
                         "game_id": game_id,
                         "map_name": game.get("mapName", "Unknown Map"),
@@ -86,7 +86,7 @@ def fetch_new_games(days=2):  # Default to 2 days if not specified
         if game_details:
             game_stats_batch[game_id] = game_details
 
-    # Assign the detailed stats to each game
+    # Now, assign the detailed stats to each game
     for game in new_games:
         game["details"] = game_stats_batch.get(game["game_id"], {})
 
@@ -98,12 +98,9 @@ def get_cached_games():
 # **Home Page**
 def home_page():
     try:
-        # Allow user to select how many days back to fetch games
-        selected_days = st.number_input("Select how many days back to fetch games", min_value=1, max_value=7, value=2)
-
         with st.spinner("Checking for new games..."):
             time.sleep(2)
-            new_games = fetch_new_games(selected_days)  # Pass selected_days as argument
+            new_games = fetch_new_games()  # Only fetch games from the last 48 hours
 
         games_in_memory = get_cached_games()
 
@@ -225,6 +222,30 @@ def home_page():
                         top_player = all_players[0]  # Highest reaction time (bad player)
                         low_player = all_players[-1]  # Lowest reaction time (good player)
 
+                        # Check if low player was the same in the previous game
+                        previous_game_low_player = None
+                        for game in games_in_memory:
+                            if game["game_id"] != selected_game_id:
+                                game_details_prev = fetch_game_details(game["game_id"])
+                                prev_all_players = [
+                                    {"name": player["name"], "reactionTime": player.get("reactionTime", 0)}
+                                    for player in game_details_prev.get("playerStats", [])
+                                    if player["name"] in ALLOWED_PLAYERS
+                                ]
+                                prev_all_players.sort(key=itemgetter("reactionTime"))
+                                if prev_all_players:
+                                    previous_game_low_player = prev_all_players[-1]["name"]  # Get the low player from the previous game
+                                break
+
+                        # If the low player is the same as the previous game, select the second-lowest
+                        if previous_game_low_player and low_player['name'] == previous_game_low_player:
+                            if len(all_players) > 1:
+                                second_low_player = all_players[-2]  # Second-lowest player
+                                low_player = second_low_player
+                            else:
+                                # If only one player, we'll just keep the low player
+                                low_player = all_players[0]
+
                         # Display the cards with a polished design
                         col1, col2 = st.columns(2)
 
@@ -238,15 +259,16 @@ def home_page():
 
                         with col2:
                             # Display the slowest player (unless it is the same as the last game)
+                            low_player_display = low_player['name'] if low_player != second_low_player else second_low_player['name']
                             st.markdown(f"""
                                 <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
                                     <h3>🍺 Tregeste pils-bitch</h3>
-                                    <h4><strong>{low_player['name']}</strong></h4>
+                                    <h4><strong>{low_player_display}</strong></h4>
                                 </div>
                             """, unsafe_allow_html=True)
 
         if new_games:
-            st.write(f"### Nye bubbegames (Last {selected_days} day(s))")
+            st.write("### Nye bubbegames")
             for new_game in new_games:
                 game_id = new_game["game_id"]
                 map_name = new_game["map_name"]
@@ -255,10 +277,10 @@ def home_page():
                 st.write(f"**{map_name} - {match_result.capitalize()} ({scores[0]}:{scores[1]})**")
                 st.write(f"Game ID: {game_id}")
 
-            st.write(f"### Total Bubbegames lagret (Siste {selected_days} dag(er)): {len(games_in_memory)}")
+            st.write(f"### Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
         else:
-            st.write(f"### Ingen nye bubbegames funnet for de siste {selected_days} dagene.")
-            st.write(f"Total Bubbegames lagret (Siste {selected_days} dag(er)): {len(games_in_memory)}")
+            st.write("### Ingen nye bubbegames funnet.")
+            st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
 
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")

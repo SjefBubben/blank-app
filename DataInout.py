@@ -116,4 +116,3 @@ def fetch_konsum_data_for_game(game_id):
 
     print(f"✅ Konsum data for game {game_id}: {konsum_data}")
     return konsum_data
-
