@@ -34,8 +34,8 @@ def fetch_game_details(game_id):
     return None
 
 # Fetch new games and filter by the last 48 hours
-def fetch_new_games():
-    games_in_db = fetch_games_within_last_48_hours()  # Fetch games already saved in the last 48 hours
+def fetch_new_games(days=2):  # Default to 2 days if not specified
+    games_in_db = fetch_games_within_last_48_hours()  # Fetch games already saved
     saved_game_ids = {game['game_id'] for game in games_in_db}  # Set of known game IDs
 
     profile_data = fetch_profile(STEAM_ID)
@@ -46,7 +46,7 @@ def fetch_new_games():
     new_games = []
     games_needing_stats = []  # For games that need detailed stats
 
-    current_time = datetime.utcnow()  # Get the current UTC time
+    current_time = datetime.utcnow()
 
     for game in games_from_api:
         game_id = game.get("gameId")
@@ -55,8 +55,8 @@ def fetch_new_games():
             if game_finished_at_str:
                 game_finished_at = datetime.strptime(game_finished_at_str, "%Y-%m-%dT%H:%M:%S.%fZ")
 
-                # Only consider the game if it finished within the last 48 hours
-                if game_finished_at > current_time - timedelta(hours=48):
+                # Only consider the game if it finished within the user-specified days
+                if game_finished_at > current_time - timedelta(days=days):
                     new_games.append({
                         "game_id": game_id,
                         "map_name": game.get("mapName", "Unknown Map"),
@@ -86,7 +86,7 @@ def fetch_new_games():
         if game_details:
             game_stats_batch[game_id] = game_details
 
-    # Now, assign the detailed stats to each game
+    # Assign the detailed stats to each game
     for game in new_games:
         game["details"] = game_stats_batch.get(game["game_id"], {})
 
@@ -98,13 +98,12 @@ def get_cached_games():
 # **Home Page**
 def home_page():
     try:
-        # Allow user to select how many days back they want the games to go
-        selected_days = st.slider("Select number of days back", min_value=1, max_value=30, value=2, step=1)
+        # Allow user to select how many days back to fetch games
+        selected_days = st.number_input("Select how many days back to fetch games", min_value=1, max_value=7, value=2)
 
-        with st.spinner(f"Checking for new games from the last {selected_days} day(s)..."):
+        with st.spinner("Checking for new games..."):
             time.sleep(2)
-            # Fetch new games within the selected number of days
-            new_games = fetch_new_games(selected_days)  # Pass the selected days to the function
+            new_games = fetch_new_games(selected_days)  # Pass selected_days as argument
 
         games_in_memory = get_cached_games()
 
