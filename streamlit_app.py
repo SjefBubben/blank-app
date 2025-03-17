@@ -383,6 +383,7 @@ def get_player_stat(player, stat_key):
 def Stats():
     st.header("Game Stats Bar Chart")
     days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
+    
     try:
         # Stat selection dropdown
         stat_options = list(stat_display_mapping.keys()) + ["Beer", "Water"]
@@ -395,11 +396,14 @@ def Stats():
 
         with st.spinner("Fetching games and stats...Checking if Tobias gay?"):
 
-            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"], reverse=True)
+            # Get games and sort by finished time (oldest first)
+            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"])
 
             for game in games_in_memory:
                 game_id = game["game_id"]
                 map_name = game["map_name"]
+                game_time = pd.to_datetime(game["game_finished_at"]).strftime("%d.%m.%y %H:%M")  # Format time
+                
                 game_details = fetch_game_details(game_id)
                 konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
 
@@ -415,24 +419,26 @@ def Stats():
 
                         # Add to player stats list
                         player_stats.append({
-                            "Game": map_name,
+                            "Game": f"{map_name} ({game_time})",  # Add time to avoid duplicate map names
                             "Player": player["name"],
                             "Stat Type": selected_stat_display_name,
-                            "Stat Value": stat_value
+                            "Stat Value": stat_value,
+                            "Game Time": game_time  # Keep for sorting
                         })
 
             if player_stats:
-                # Convert stats to DataFrame for plotting
+                # Convert stats to DataFrame and sort
                 df = pd.DataFrame(player_stats)
-                df = df.iloc[::-1]
+                df = df.sort_values(by=["Game Time"], ascending=True)  # Ensure correct order
 
                 # Plot the bar chart
-                fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
+                fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group",
+                             title=f"{selected_stat_display_name} per Player in Recent Games")
                 st.plotly_chart(fig)
 
                 # **Add CSV Download Button**
                 if st.button("Klikk her for å laste gamedata i CSV format"):
-                    Download_Game_Stats()
+                    Download_Game_Stats(days)
 
             else:
                 st.warning("No data available.")
@@ -440,12 +446,12 @@ def Stats():
     except Exception as e:
         st.error(f"An error occurred while generating the bar chart: {e}")
 
-def Download_Game_Stats():
+def Download_Game_Stats(days):
     try:
         all_game_data = []
 
         with st.spinner("Henter game data..."):
-            games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
+            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"], reverse=True)
 
             for game in games_in_memory:
                 game_id = game["game_id"]
