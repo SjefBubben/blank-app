@@ -81,7 +81,7 @@ def fetch_games_within_last_48_hours():
         df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], errors="coerce", utc=True)
 
         # Define the cutoff time (48 hours ago) as timezone-aware datetime
-        cutoff_time = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(hours=48)
+        cutoff_time = st.session_state.selected_date.replace(tzinfo=timezone.utc)
 
         # Filter games within the last 48 hours using timezone-aware datetime comparison
         df = df[df["game_finished_at"] >= cutoff_time]
