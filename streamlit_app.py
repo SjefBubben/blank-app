@@ -91,7 +91,7 @@ def fetch_new_games(days=2):
         game["details"] = game_stats_batch.get(game["game_id"], {})
 
     return new_games
-@st.cache_data(ttl=10 * 10)
+@st.cache_data(ttl=5 * 60)
 def get_cached_games(days=2):
     games_in_memory = fetch_games_within_last_48_hours(days)
     return games_in_memory
@@ -278,10 +278,10 @@ def home_page():
                 st.write(f"**{map_name} - {match_result.capitalize()} ({scores[0]}:{scores[1]})**")
                 st.write(f"Game ID: {game_id}")
 
-            st.write(f"### Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
+            st.write(f"### Total Bubbegames lagret over valgt tidsrom: {len(games_in_memory)}")
         else:
             st.write("### Ingen nye bubbegames funnet.")
-            st.write(f"Total Bubbegames lagret (Siste 48 timer): {len(games_in_memory)}")
+            st.write(f"Total Bubbegames lagret over valgt tidsrom: {len(games_in_memory)}")
 
     except Exception as e:
         st.error(f"An error occurred while fetching new games: {e}")
@@ -346,7 +346,7 @@ def input_data_page():
     except Exception as e:
         st.error(f"An error occurred while processing game data: {e}")
 
-@st.cache_data(ttl=5 * 5)
+@st.cache_data(ttl=5 * 60)
 def get_cached_konsum(game_id):
     konsum_in_memory = fetch_konsum_data_for_game(game_id)
     return konsum_in_memory
