@@ -34,8 +34,8 @@ def fetch_game_details(game_id):
     return None
 
 # Fetch new games and filter by the last 48 hours
-def fetch_new_games():
-    games_in_db = fetch_games_within_last_48_hours()  # Fetch games already saved in the last 48 hours
+def fetch_new_games(days=2):
+    games_in_db = fetch_games_within_last_48_hours(days)  # Fetch games already saved in the last 48 hours
     saved_game_ids = {game['game_id'] for game in games_in_db}  # Set of known game IDs
 
     profile_data = fetch_profile(STEAM_ID)
@@ -56,7 +56,7 @@ def fetch_new_games():
                 game_finished_at = datetime.strptime(game_finished_at_str, "%Y-%m-%dT%H:%M:%S.%fZ")
 
                 # Only consider the game if it finished within the last 48 hours
-                if game_finished_at > current_time - timedelta(hours=48):
+                if game_finished_at > current_time - timedelta(days=days):
                     new_games.append({
                         "game_id": game_id,
                         "map_name": game.get("mapName", "Unknown Map"),
@@ -92,17 +92,18 @@ def fetch_new_games():
 
     return new_games
 @st.cache_data(ttl=10 * 10)
-def get_cached_games():
-    games_in_memory = fetch_games_within_last_48_hours()
+def get_cached_games(days=2):
+    games_in_memory = fetch_games_within_last_48_hours(days)
     return games_in_memory
 # **Home Page**
 def home_page():
+    days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
     try:
         with st.spinner("Checking for new games..."):
             time.sleep(2)
-            new_games = fetch_new_games()  # Only fetch games from the last 48 hours
+            new_games = fetch_new_games(days)  # Only fetch games from the last 48 hours
 
-        games_in_memory = get_cached_games()
+        games_in_memory = get_cached_games(days)
 
         # Initialize players
         top_player = None
@@ -291,7 +292,7 @@ def refresh_data():
 
 def input_data_page():
     st.header("Input BubbeData")
-
+    days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
     # Add a refresh button at the top
     if st.button("Refresh Data fra Sheets"):
         refresh_data()
@@ -300,7 +301,7 @@ def input_data_page():
     try:
         # Load games only if not already in session state
         if "games_data" not in st.session_state:
-            st.session_state["games_data"] = get_cached_games()
+            st.session_state["games_data"] = get_cached_games(days)
 
         # Sort games by newest first
         games_in_memory = sorted(st.session_state["games_data"], key=lambda game: game["game_finished_at"], reverse=True)
@@ -381,7 +382,7 @@ def get_player_stat(player, stat_key):
 
 def Stats():
     st.header("Game Stats Bar Chart")
-
+    days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
     try:
         # Stat selection dropdown
         stat_options = list(stat_display_mapping.keys()) + ["Beer", "Water"]
@@ -394,7 +395,7 @@ def Stats():
 
         with st.spinner("Fetching games and stats...Checking if Tobias gay?"):
 
-            games_in_memory = sorted(get_cached_games(), key=lambda game: game["game_finished_at"], reverse=True)
+            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"], reverse=True)
 
             for game in games_in_memory:
                 game_id = game["game_id"]

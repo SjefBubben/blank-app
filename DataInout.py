@@ -63,7 +63,7 @@ def save_konsum_data(game_id, player_name, beer, water_glasses):
     # If not found, add a new row
     sheet.append_row([game_id, player_name, beer, water_glasses])
 
-def fetch_games_within_last_48_hours():
+def fetch_games_within_last_48_hours(days=2):
     try:
         # Connect to Google Sheets
         client = connect_to_gsheet()
@@ -81,7 +81,7 @@ def fetch_games_within_last_48_hours():
         df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], errors="coerce", utc=True)
 
         # Define the cutoff time (48 hours ago) as timezone-aware datetime
-        cutoff_time = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(hours=48)
+        cutoff_time = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=days)
 
         # Filter games within the last 48 hours using timezone-aware datetime comparison
         df = df[df["game_finished_at"] >= cutoff_time]
