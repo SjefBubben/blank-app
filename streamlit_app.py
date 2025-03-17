@@ -33,23 +33,6 @@ def fetch_game_details(game_id):
         return response.json()
     return None
 
-# Add a button to manually select a date instead of using timedelta
-st.write("### Adjust Game Time Range")
-
-# Default to 48 hours ago
-if "selected_date" not in st.session_state:
-    st.session_state.selected_date = datetime.utcnow() - timedelta(hours=48)
-
-selected_date = st.date_input(
-    "Select a past date to fetch games from:",
-    st.session_state.selected_date.date()
-)
-
-# Update session state
-st.session_state.selected_date = datetime.combine(selected_date, datetime.min.time())
-
-# Convert to UTC for comparison
-selected_cutoff_time = st.session_state.selected_date.replace(tzinfo=timezone.utc)
 # Fetch new games and filter by the last 48 hours
 def fetch_new_games():
     games_in_db = fetch_games_within_last_48_hours()  # Fetch games already saved in the last 48 hours
@@ -115,6 +98,23 @@ def get_cached_games():
 # **Home Page**
 def home_page():
     try:
+                # Add a button to manually select a date instead of using timedelta
+        st.write("### Adjust Game Time Range")
+
+        # Default to 48 hours ago
+        if "selected_date" not in st.session_state:
+            st.session_state.selected_date = datetime.utcnow() - timedelta(hours=48)
+
+        selected_date = st.date_input(
+            "Select a past date to fetch games from:",
+            st.session_state.selected_date.date()
+        )
+
+        # Update session state
+        st.session_state.selected_date = datetime.combine(selected_date, datetime.min.time())
+
+        # Convert to UTC for comparison
+        selected_cutoff_time = st.session_state.selected_date.replace(tzinfo=timezone.utc)
         with st.spinner("Checking for new games..."):
             time.sleep(2)
             new_games = fetch_new_games()  # Only fetch games from the last 48 hours
