@@ -46,7 +46,7 @@ def fetch_new_games():
     new_games = []
     games_needing_stats = []  # For games that need detailed stats
 
-    #current_time = datetime.utcnow()  # Get the current UTC time
+    current_time = datetime.utcnow()  # Get the current UTC time
 
     for game in games_from_api:
         game_id = game.get("gameId")
@@ -56,7 +56,7 @@ def fetch_new_games():
                 game_finished_at = datetime.strptime(game_finished_at_str, "%Y-%m-%dT%H:%M:%S.%fZ")
 
                 # Only consider the game if it finished within the last 48 hours
-                if game_finished_at > selected_cutoff_time:
+                if game_finished_at > current_time - timedelta(hours=48):
                     new_games.append({
                         "game_id": game_id,
                         "map_name": game.get("mapName", "Unknown Map"),
@@ -98,23 +98,6 @@ def get_cached_games():
 # **Home Page**
 def home_page():
     try:
-                # Add a button to manually select a date instead of using timedelta
-        st.write("### Adjust Game Time Range")
-
-        # Default to 48 hours ago
-        if "selected_date" not in st.session_state:
-            st.session_state.selected_date = datetime.utcnow() - timedelta(hours=48)
-
-        selected_date = st.date_input(
-            "Select a past date to fetch games from:",
-            st.session_state.selected_date.date()
-        )
-
-        # Update session state
-        st.session_state.selected_date = datetime.combine(selected_date, datetime.min.time())
-
-        # Convert to UTC for comparison
-        selected_cutoff_time = st.session_state.selected_date.replace(tzinfo=timezone.utc)
         with st.spinner("Checking for new games..."):
             time.sleep(2)
             new_games = fetch_new_games()  # Only fetch games from the last 48 hours

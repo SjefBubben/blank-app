@@ -77,11 +77,11 @@ def fetch_games_within_last_48_hours():
         # Convert raw data to DataFrame
         df = pd.DataFrame(data[1:], columns=data[0])
 
-        # Convert `game_finished_at` to timezone-aware datetime (UTC)
+        # Convert game_finished_at to timezone-aware datetime (UTC)
         df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], errors="coerce", utc=True)
 
         # Define the cutoff time (48 hours ago) as timezone-aware datetime
-        cutoff_time = st.session_state.selected_date.replace(tzinfo=timezone.utc)
+        cutoff_time = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(hours=48)
 
         # Filter games within the last 48 hours using timezone-aware datetime comparison
         df = df[df["game_finished_at"] >= cutoff_time]
@@ -116,3 +116,4 @@ def fetch_konsum_data_for_game(game_id):
 
     print(f"✅ Konsum data for game {game_id}: {konsum_data}")
     return konsum_data
+
