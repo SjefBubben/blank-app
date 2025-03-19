@@ -135,7 +135,7 @@ def home_page():
 # Input Data Page
 def input_data_page():
     st.header("Input BubbeData")
-    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=200, value=2)
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
@@ -191,7 +191,7 @@ STAT_MAP = {
 
 def stats_page():
     st.header("Stats")
-    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=200, value=2)
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
     stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
