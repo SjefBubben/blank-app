@@ -436,19 +436,22 @@ def Stats():
                 konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
 
                 for player in game_details.get("playerStats", []):
-                    if player["name"] in ALLOWED_PLAYERS:
+                    raw_name = player["name"]  # Get the name directly from API
+                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)  # Map to the standardized name
+                    
+                    if mapped_name in ALLOWED_PLAYERS:
                         # Get stat value
                         if selected_stat == "beer":
-                            stat_value = konsum_data.get(player["name"], {}).get("beer", 0)
+                            stat_value = konsum_data.get(mapped_name, {}).get("beer", 0)
                         elif selected_stat == "water":
-                            stat_value = konsum_data.get(player["name"], {}).get("water", 0)
+                            stat_value = konsum_data.get(mapped_name, {}).get("water", 0)
                         else:
                             stat_value = get_player_stat(player, selected_stat)
 
                         # Add to player stats list
                         player_stats.append({
                             "Game": f"{map_name} ({game_time})",  # Add time to avoid duplicate map names
-                            "Player": player["name"],
+                            "Player": mapped_name,  # Use mapped name here
                             "Stat Type": selected_stat_display_name,
                             "Stat Value": stat_value,
                             "Game Time": game_time  # Keep for sorting
@@ -488,11 +491,14 @@ def Download_Game_Stats(days):
                 konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
 
                 for player in game_details.get("playerStats", []):
-                    if player["name"] in ALLOWED_PLAYERS:
+                    raw_name = player["name"]  # Get the name directly from API
+                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)  # Map to the standardized name
+                    
+                    if mapped_name in ALLOWED_PLAYERS:
                         # Prepare full stats dictionary for CSV
                         player_data = {
                             "Game": map_name,
-                            "Player": player["name"],
+                            "Player": mapped_name,  # Use mapped name here
                             "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
                         }
 
@@ -501,8 +507,8 @@ def Download_Game_Stats(days):
                             player_data[display_name] = get_player_stat(player, stat_key)
 
                         # Add Beer & Water
-                        player_data["Beer"] = konsum_data.get(player["name"], {}).get("beer", 0)
-                        player_data["Water"] = konsum_data.get(player["name"], {}).get("water", 0)
+                        player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
+                        player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
 
                         all_game_data.append(player_data)
 
