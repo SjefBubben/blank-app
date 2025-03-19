@@ -16,7 +16,7 @@ STEAM_ID = "76561197983741618"
 NAME_MAPPING = {
     "JimmyJimbob": "Jeppe", "Jimmy": "Jeppe", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
     "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "PappaBubben",
-    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0", "🐈": "Ahmed"
+    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0", "Big Man Inge": "Ahmed"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
@@ -80,7 +80,7 @@ def get_cached_games(days=2):
 
 # Home Page
 def home_page():
-    days = st.number_input("Days back", min_value=1, max_value=200, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
     with st.spinner("Fetching games..."):
         new_games = fetch_new_games(days)
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
@@ -135,7 +135,7 @@ def home_page():
 # Input Data Page
 def input_data_page():
     st.header("Input BubbeData")
-    days = st.number_input("Days back", min_value=1, max_value=200, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
@@ -191,7 +191,7 @@ STAT_MAP = {
 
 def stats_page():
     st.header("Stats")
-    days = st.number_input("Days back", min_value=1, max_value=200, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
     stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
@@ -202,7 +202,7 @@ def stats_page():
 
         for game in games:
             details = fetch_game_details(game["game_id"])
-            konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
+            konsum = get_cached_konsum(game["game_id"])
             game_label = f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
 
             for p in details.get("playerStats", []):
@@ -215,9 +215,57 @@ def stats_page():
             df = pd.DataFrame(stats_data)
             fig = px.bar(df, x="Player", y="Value", color="Game", barmode="group", title=f"{selected_stat} per Player")
             st.plotly_chart(fig)
-            if st.button("Download CSV"):
-                csv = df.to_csv(index=False)
-                st.download_button("Download", csv, "stats.csv", "text/csv")
+            if st.button("Download All Stats as CSV"):
+                Download_Game_Stats(days)
+
+def Download_Game_Stats(days):
+    try:
+        all_game_data = []
+
+        with st.spinner("Henter game data..."):
+            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"], reverse=True)
+
+            for game in games_in_memory:
+                game_id = game["game_id"]
+                map_name = game["map_name"]
+                game_details = fetch_game_details(game_id)
+                konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
+
+                for player in game_details.get("playerStats", []):
+                    raw_name = player["name"]
+                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)
+                    
+                    if mapped_name in ALLOWED_PLAYERS:
+                        player_data = {
+                            "Game": map_name,
+                            "Player": mapped_name,
+                            "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
+                        }
+
+                        # Add all game stats
+                        for display_name, stat_key in stat_display_mapping.items():
+                            player_data[display_name] = get_player_stat(player, stat_key)
+
+                        # Add Beer & Water
+                        player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
+                        player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
+
+                        all_game_data.append(player_data)
+
+        if all_game_data:
+            df_full = pd.DataFrame(all_game_data)
+            csv_buffer = StringIO()
+            df_full.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+
+            st.download_button(
+                label="Klikk her for å laste ned CSV fil",
+                data=csv_data,
+                file_name="all_game_stats.csv",
+                mime="text/csv"
+            )
+    except Exception as e:
+        st.error(f"Error downloading stats: {e}")
 
 # Motivation Page
 def motivation_page():
