@@ -131,11 +131,6 @@ def home_page():
             st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
     st.write(f"Total games: {len(games)}")
 
-    if new_games:
-        st.subheader("New Games")
-        for g in new_games:
-            st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
-    st.write(f"Total games: {len(games)}")
 
 # Input Data Page
 def input_data_page():
