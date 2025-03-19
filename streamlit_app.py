@@ -85,6 +85,7 @@ def get_cached_games(days=2):
     return fetch_games_within_last_48_hours(days)
 
 # Home Page
+# Home Page
 def home_page():
     days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
     with st.spinner("Checking for new games..."):
@@ -107,46 +108,54 @@ def home_page():
                 {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 0)}
                 for p in game_details.get("playerStats", []) if NAME_MAPPING.get(p["name"], p["name"]) in ALLOWED_PLAYERS
             ]
+            if not all_players:
+                st.write("No allowed players found in this game.")
+                return
+
+            # Sort by reaction time (lowest to highest)
             all_players.sort(key=itemgetter("reactionTime"))
 
-            if all_players:
-                # Find fastest (min reaction time) and slowest (max reaction time)
-                min_reaction_time = min(p["reactionTime"] for p in all_players)
-                max_reaction_time = max(p["reactionTime"] for p in all_players)
+            # Find min and max reaction times
+            min_reaction_time = min(p["reactionTime"] for p in all_players)
+            max_reaction_time = max(p["reactionTime"] for p in all_players)
 
-                # Get all players tied for fastest
-                top_players = [p for p in all_players if p["reactionTime"] == min_reaction_time]
-                # Get all players tied for slowest
-                low_players = [p for p in all_players if p["reactionTime"] == max_reaction_time]
+            # Get players tied for fastest (lowest reaction time)
+            top_players = [p for p in all_players if p["reactionTime"] == min_reaction_time]
+            # Get players tied for slowest (highest reaction time)
+            low_players = [p for p in all_players if p["reactionTime"] == max_reaction_time]
 
-                # Handle the "previous low player" logic for slowest
-                if "previous_low_player" in st.session_state and st.session_state.previous_low_player in [p["name"] for p in low_players] and len(all_players) > len(low_players):
-                    # If the previous low player is among the tied slowest, pick the next slowest group
-                    next_slowest_time = min(p["reactionTime"] for p in all_players if p["reactionTime"] > max_reaction_time or p not in low_players)
+            # Handle "previous low player" logic only for the slowest group
+            if "previous_low_player" in st.session_state and st.session_state.previous_low_player in [p["name"] for p in low_players]:
+                # If the previous low player is in the slowest group and there are other options
+                remaining_players = [p for p in all_players if p["reactionTime"] < max_reaction_time]
+                if remaining_players:
+                    next_slowest_time = max(p["reactionTime"] for p in remaining_players)
                     low_players = [p for p in all_players if p["reactionTime"] == next_slowest_time]
-                
-                # Update the previous low player to the first of the slowest group (arbitrary choice for tie)
+
+            # Update the previous low player to the first of the current slowest group
+            if low_players:
                 st.session_state.previous_low_player = low_players[0]["name"]
 
-                # Format names for display
-                top_names = ", ".join(p["name"] for p in top_players)
-                low_names = ", ".join(p["name"] for p in low_players)
+            # Format names for display
+            top_names = ", ".join(p["name"] for p in top_players)
+            low_names = ", ".join(p["name"] for p in low_players)
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown(f"""
-                        <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                            <h3>💪 Raskeste gooner</h3>
-                            <h4><strong>{top_names}</strong></h4>
-                        </div>
-                    """, unsafe_allow_html=True)
-                with col2:
-                    st.markdown(f"""
-                        <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                            <h3>🍺 Tregeste pils-bitch</h3>
-                            <h4><strong>{low_names}</strong></h4>
-                        </div>
-                    """, unsafe_allow_html=True)
+            # Display the results
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown(f"""
+                    <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                        <h3>💪 Raskeste gooner</h3>
+                        <h4><strong>{top_names}</strong></h4>
+                    </div>
+                """, unsafe_allow_html=True)
+            with col2:
+                st.markdown(f"""
+                    <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                        <h3>🍺 Tregeste pils-bitch</h3>
+                        <h4><strong>{low_names}</strong></h4>
+                    </div>
+                """, unsafe_allow_html=True)
 
     if new_games:
         st.write("### Nye bubbegames")
