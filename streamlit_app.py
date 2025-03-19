@@ -241,8 +241,10 @@ def home_page():
                     all_players.sort(key=itemgetter("reactionTime"))
 
                     if all_players:
-                        # Determine the top and low player for the selected game
+                        # Determine the top player for the current game (fastest reaction time)
                         top_player = all_players[0]  # Highest reaction time (bad player)
+
+                        # Determine the low player for the current game (slowest reaction time)
                         low_player = all_players[-1]  # Lowest reaction time (good player)
 
                         # Check if low player was the same in the previous game
