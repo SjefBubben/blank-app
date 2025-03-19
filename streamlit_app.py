@@ -109,14 +109,6 @@ def home_page():
                 top_players = [p for p in players if p["reactionTime"] == min_rt]
                 low_players = [p for p in players if p["reactionTime"] == max_rt]
 
-                if "prev_low" in st.session_state and st.session_state.prev_low in [p["name"] for p in low_players]:
-                    others = [p for p in players if p["reactionTime"] < max_rt]
-                    if others:
-                        next_max_rt = max(p["reactionTime"] for p in others)
-                        low_players = [p for p in players if p["reactionTime"] == next_max_rt]
-
-                st.session_state.prev_low = low_players[0]["name"] if low_players else None
-
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown(f"""
@@ -132,6 +124,12 @@ def home_page():
                             <h4>{', '.join(p['name'] for p in low_players)}</h4>
                         </div>
                     """, unsafe_allow_html=True)
+
+    if new_games:
+        st.subheader("New Games")
+        for g in new_games:
+            st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
+    st.write(f"Total games: {len(games)}")
 
     if new_games:
         st.subheader("New Games")
