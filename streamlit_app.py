@@ -24,7 +24,7 @@ NAME_MAPPING = {
     "Kåre": "Kåre",
     "Kaare": "Kåre",
     "Fakeface": "Fakeface",
-    "Killtehm26": "Fakeface",
+    "Killthem26": "Fakeface",
     "Lars Olaf": "Lars Olaf",
     "Bøghild": "Bøghild",
     "Nish": "Nish",
