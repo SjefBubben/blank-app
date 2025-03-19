@@ -150,8 +150,7 @@ def input_data_page():
         return
 
     for game in games:
-        # Debug: Show the raw game data to diagnose
-        st.write("Debug - Game Data:", game)
+        
 
         details = fetch_game_details(game.get("game_id"))
         if not details:
@@ -161,7 +160,7 @@ def input_data_page():
         # Safely access game data with defaults
         map_name = game.get("map_name", "Unknown")
         match_result = game.get("match_result", "Unknown")
-        scores = game.get("scores", [0, 0])
+        scores = [game["score_team1"], game["score_team2"]]
         game_finished_at = game.get("game_finished_at")
         
         # Ensure game_finished_at is a datetime object
