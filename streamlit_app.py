@@ -17,7 +17,20 @@ GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
 STEAM_ID = "76561197983741618"
 
 # Allowed player names
-ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish", "Zohan"}
+#ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish", "Zohan"}
+NAME_MAPPING = {
+    "JimmyJimbob": "Jimmy",
+    "Jimmy": "Jimmy",
+    "Kåre": "Kåre",
+    "Kaare": "Kåre",
+    "Fakeface": "Fakeface",
+    "Killtehm26": "Fakeface",
+    "Lars Olaf": "Lars Olaf",
+    "Bøghild": "Bøghild",
+    "Nish": "Nish",
+    "Zohan": "Zohan"
+}
+ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
 # Fetch profile data
 def fetch_profile(steam_id):
@@ -136,10 +149,16 @@ def home_page():
 
                     # Loop through players in the selected game
                     for player in game_details.get("playerStats", []):
-                        if player["name"] in ALLOWED_PLAYERS:
+                        #if player["name"] in ALLOWED_PLAYERS:
+                        raw_name = player["name"]
+                        display_name = NAME_MAPPING.get(raw_name, raw_name)
+                        if display_name in ALLOWED_PLAYERS:
                             all_players.append({
-                                "name": player["name"],
-                                "reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
+                                "name": display_name,
+                                "reactionTime": player.get("reactionTime",0)
+                            #all_players.append({
+                                #"name": player["name"],
+                                #"reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
                             })
 
                     # Sort players by reaction time (fastest first)
@@ -209,10 +228,13 @@ def home_page():
 
                     # Loop through players in the selected game
                     for player in game_details.get("playerStats", []):
-                        if player["name"] in ALLOWED_PLAYERS:
+                        raw_name = player["name"]
+                        display_name = NAME_MAPPING.get(raw_name, raw_name)  # Convert API name to standard name
+
+                        if display_name in ALLOWED_PLAYERS:
                             all_players.append({
-                                "name": player["name"],
-                                "reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
+                                "name": display_name,  # Store only the standardized name
+                                "reactionTime": player.get("reactionTime", 0)  # Default to 0 if missing
                             })
 
                     # Sort players by reaction time (fastest first)
@@ -225,15 +247,22 @@ def home_page():
 
                         # Check if low player was the same in the previous game
                         previous_game_low_player = None
+
                         for game in games_in_memory:
                             if game["game_id"] != selected_game_id:
                                 game_details_prev = fetch_game_details(game["game_id"])
+
                                 prev_all_players = [
-                                    {"name": player["name"], "reactionTime": player.get("reactionTime", 0)}
+                                    {
+                                        "name": NAME_MAPPING.get(player["name"], player["name"]),  # Normalize names
+                                        "reactionTime": player.get("reactionTime", 0)
+                                    }
                                     for player in game_details_prev.get("playerStats", [])
-                                    if player["name"] in ALLOWED_PLAYERS
+                                    if NAME_MAPPING.get(player["name"], player["name"]) in ALLOWED_PLAYERS
                                 ]
+
                                 prev_all_players.sort(key=itemgetter("reactionTime"))
+
                                 if prev_all_players:
                                     previous_game_low_player = prev_all_players[-1]["name"]  # Get the low player from the previous game
                                 break
