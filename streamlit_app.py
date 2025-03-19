@@ -16,7 +16,7 @@ STEAM_ID = "76561197983741618"
 NAME_MAPPING = {
     "JimmyJimbob": "Jeppe", "Jimmy": "Jeppe", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
     "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "PappaBubben",
-    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0", "Big Man Inge": "Ahmed"
+    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
@@ -78,9 +78,27 @@ def fetch_new_games(days=2):
 def get_cached_games(days=2):
     return fetch_games_within_last_48_hours(days)
 
-# Home Page
+@st.cache_data(ttl=300)
+def get_cached_konsum(game_id):
+    return fetch_konsum_data_for_game(game_id) or {}
+
+# Stat Mapping and Helper
+stat_display_mapping = {
+    "K/D Ratio": "kdRatio", "ADR (Average Damage per Round)": "dpr", "HLTV Rating": "hltvRating",
+    "Enemies Flashed": "flashbangThrown", "Friends Flashed": "flashbangHitFoe", "Avg. Unused Utility": "utilityOnDeathAvg",
+    "Trade Kill Opportunities": "tradeKillOpportunities", "Trade Kill Attempts": "tradeKillAttempts",
+    "Trade Kill Success": "tradeKillsSucceeded", "2k Kills": "multi2k", "3k Kills": "multi3k",
+    "4k Kills": "multi4k", "5k Kills": "multi5k", "Flashbang Leading to Kill": "flashbangLeadingToKill",
+    "Reaction Time": "reactionTime", "HE Grenades Thrown": "heThrown", "Molotovs Thrown": "molotovThrown",
+    "Smokes Thrown": "smokeThrown"
+}
+
+def get_player_stat(player, stat_key):
+    return player.get(stat_key, 0)
+
+# Home Page (No Session State)
 def home_page():
-    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
     with st.spinner("Fetching games..."):
         new_games = fetch_new_games(days)
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
@@ -130,7 +148,6 @@ def home_page():
         for g in new_games:
             st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
     st.write(f"Total games: {len(games)}")
-
 
 # Input Data Page
 def input_data_page():
