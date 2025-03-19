@@ -25,7 +25,7 @@ NAME_MAPPING = {
     "Kaare": "Torgrizz",
     "Fakeface": "Birkle",
     "Killthem26": "Birkle",
-    "Lars Olaf": "PappeBubben",
+    "Lars Olaf": "PappaBubben",
     "Bøghild": "Bøghild",
     "Nish": "Nish",
     "Zohan": "Patient 0"
