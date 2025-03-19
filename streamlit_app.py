@@ -20,7 +20,7 @@ STEAM_ID = "76561197983741618"
 #ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish", "Zohan"}
 NAME_MAPPING = {
     "JimmyJimbob": "Jimmy",
-    "Jimmy": "Jimmy",
+    "Jimmy": "JimmyJimbob",
     "Kåre": "Kåre",
     "Kaare": "Kåre",
     "Fakeface": "Fakeface",
