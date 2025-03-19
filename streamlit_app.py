@@ -1,9 +1,7 @@
 import streamlit as st
-import time
 import requests
 import pandas as pd
 import plotly.express as px
-import time
 from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
@@ -16,40 +14,35 @@ GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
 # User's Steam ID
 STEAM_ID = "76561197983741618"
 
-# Allowed player names
-#ALLOWED_PLAYERS = {"Jimmy", "Kåre", "Fakeface", "Lars Olaf", "Bøghild", "Nish", "Zohan"}
+# Name mapping for players
 NAME_MAPPING = {
-    "JimmyJimbob": "Jeppe",
-    "Jimmy": "Jeppe",
-    "Kåre": "Torgrizz",
-    "Kaare": "Torgrizz",
-    "Fakeface": "Birkle",
-    "Killthem26": "Birkle",
-    "Lars Olaf": "PappaBubben",
-    "Bøghild": "Bøghild",
-    "Nish": "Nish",
-    "Zohan": "Patient 0"
+    "JimmyJimbob": "Jeppe", "Jimmy": "Jeppe", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
+    "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "PappaBubben",
+    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-# Fetch profile data
+# API fetch functions
 def fetch_profile(steam_id):
-    response = requests.get(PROFILE_API + steam_id)
-    if response.status_code == 200:
+    try:
+        response = requests.get(PROFILE_API + steam_id)
+        response.raise_for_status()
         return response.json()
-    return None
+    except requests.RequestException:
+        return None
 
-# Fetch game details
 def fetch_game_details(game_id):
-    response = requests.get(GAMES_API + game_id)
-    if response.status_code == 200:
+    try:
+        response = requests.get(GAMES_API + game_id)
+        response.raise_for_status()
         return response.json()
-    return None
+    except requests.RequestException:
+        return None
 
-# Fetch new games and filter by the last 48 hours
+# Fetch and save new games within the last X days
 def fetch_new_games(days=2):
-    games_in_db = fetch_games_within_last_48_hours(days)  # Fetch games already saved in the last 48 hours
-    saved_game_ids = {game['game_id'] for game in games_in_db}  # Set of known game IDs
+    games_in_db = fetch_games_within_last_48_hours(days)
+    saved_game_ids = {game['game_id'] for game in games_in_db}
 
     profile_data = fetch_profile(STEAM_ID)
     if not profile_data:
@@ -57,522 +50,223 @@ def fetch_new_games(days=2):
 
     games_from_api = profile_data.get("games", [])
     new_games = []
-    games_needing_stats = []  # For games that need detailed stats
-
-    current_time = datetime.utcnow()  # Get the current UTC time
+    games_needing_stats = []
+    current_time = datetime.utcnow()
 
     for game in games_from_api:
         game_id = game.get("gameId")
         if game_id not in saved_game_ids:
-            game_finished_at_str = game.get("gameFinishedAt")
-            if game_finished_at_str:
-                game_finished_at = datetime.strptime(game_finished_at_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-
-                # Only consider the game if it finished within the last 48 hours
+            try:
+                game_finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
                 if game_finished_at > current_time - timedelta(days=days):
                     new_games.append({
-                        "game_id": game_id,
-                        "map_name": game.get("mapName", "Unknown Map"),
+                        "game_id": game_id, "map_name": game.get("mapName", "Unknown Map"),
                         "match_result": game.get("matchResult", "Unknown Result"),
-                        "scores": game.get("scores", [0, 0]),
-                        "game_finished_at": game_finished_at_str
+                        "scores": game.get("scores", [0, 0]), "game_finished_at": game_finished_at
                     })
                     games_needing_stats.append(game_id)
-
-    if not new_games:
-        return []
+            except (ValueError, KeyError):
+                continue
 
     for game in new_games:
         save_game_data(
-            game["game_id"],
-            game["map_name"],
-            game["match_result"],
-            game["scores"][0],
-            game["scores"][1],
-            game["game_finished_at"]
+            game["game_id"], game["map_name"], game["match_result"],
+            game["scores"][0], game["scores"][1], game["game_finished_at"]
         )
 
-    # Fetch game details for each individual game_id
-    game_stats_batch = {}
-    for game_id in games_needing_stats:
-        game_details = fetch_game_details(game_id)
-        if game_details:
-            game_stats_batch[game_id] = game_details
-
-    # Now, assign the detailed stats to each game
+    game_stats_batch = {game_id: fetch_game_details(game_id) for game_id in games_needing_stats if fetch_game_details(game_id)}
     for game in new_games:
         game["details"] = game_stats_batch.get(game["game_id"], {})
 
     return new_games
-@st.cache_data(ttl=5 * 60)
+
+@st.cache_data(ttl=300)
 def get_cached_games(days=2):
-    games_in_memory = fetch_games_within_last_48_hours(days)
-    return games_in_memory
-# **Home Page**
+    return fetch_games_within_last_48_hours(days)
+
+# Home Page
 def home_page():
     days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
-    try:
-        with st.spinner("Checking for new games..."):
-            time.sleep(2)
-            new_games = fetch_new_games(days)  # Only fetch games from the last 48 hours
+    with st.spinner("Checking for new games..."):
+        new_games = fetch_new_games(days)
+        games_in_memory = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
-        games_in_memory = get_cached_games(days)
+    if not games_in_memory:
+        st.write("No games found in the selected timeframe.")
+        return
 
-        # Initialize players
-        top_player = None
-        low_player = None
-        second_low_player = None
+    game_options = [f"{g['map_name']} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games_in_memory]
+    selected_game = st.selectbox("Select a game", game_options)
+    selected_game_id = selected_game.split(" - ")[-1]
+    selected_game_details = next((g for g in games_in_memory if g["game_id"] == selected_game_id), None)
 
-        if new_games:
-            # If there are new games, process them
-            games_in_memory.sort(key=lambda x: x["game_finished_at"], reverse=True)
+    if selected_game_details:
+        game_details = fetch_game_details(selected_game_id)
+        if game_details:
+            all_players = [
+                {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 0)}
+                for p in game_details.get("playerStats", []) if NAME_MAPPING.get(p["name"], p["name"]) in ALLOWED_PLAYERS
+            ]
+            all_players.sort(key=itemgetter("reactionTime"))
 
-            if games_in_memory:  # Ensure there is at least one game
-                # Create a picker for the games based on timestamp and map
-                game_options = [
-                    f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {game['game_id']}"
-                    for game in games_in_memory
-                ]
-                selected_game = st.selectbox("Select a game", game_options)
+            if all_players:
+                top_player = all_players[0]  # Fastest (lowest reaction time)
+                low_player = all_players[-1]  # Slowest (highest reaction time)
 
-                # Find the selected game from the memory
-                selected_game_id = selected_game.split(" - ")[0]  # Extract the game_id
-                selected_game_details = next(
-                    (game for game in games_in_memory if game["game_id"] == selected_game_id), None
-                )
+                if "previous_low_player" in st.session_state and st.session_state.previous_low_player == low_player["name"] and len(all_players) > 1:
+                    low_player = all_players[-2]  # Second slowest if same as last time
 
-                if selected_game_details:
-                    game_id = selected_game_details["game_id"]
-                    game_details = fetch_game_details(game_id)
+                st.session_state.previous_low_player = low_player["name"]
 
-                    all_players = []
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"""
+                        <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                            <h3>💪 Raskeste gooner</h3>
+                            <h4><strong>{top_player['name']}</strong></h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+                with col2:
+                    st.markdown(f"""
+                        <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                            <h3>🍺 Tregeste pils-bitch</h3>
+                            <h4><strong>{low_player['name']}</strong></h4>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-                    # Loop through players in the selected game
-                    for player in game_details.get("playerStats", []):
-                        #if player["name"] in ALLOWED_PLAYERS:
-                        raw_name = player["name"]
-                        display_name = NAME_MAPPING.get(raw_name, raw_name)
-                        if display_name in ALLOWED_PLAYERS:
-                            all_players.append({
-                                "name": display_name,
-                                "reactionTime": player.get("reactionTime",0)
-                            #all_players.append({
-                                #"name": player["name"],
-                                #"reactionTime": player.get("reactionTime", 0)  # Default to 0 if rating is missing
-                            })
+    if new_games:
+        st.write("### Nye bubbegames")
+        for game in new_games:
+            st.write(f"**{game['map_name']} - {game['match_result'].capitalize()} ({game['scores'][0]}:{game['scores'][1]})**")
+            st.write(f"Game ID: {game['game_id']}")
+    st.write(f"### Total Bubbegames lagret over valgt tidsrom: {len(games_in_memory)}")
 
-                    # Sort players by reaction time (fastest first)
-                    all_players.sort(key=itemgetter("reactionTime"))
-
-                    if all_players:
-                        # Determine the top and low player for the selected game
-                        top_player = all_players[0]  # Highest reaction time (bad player)
-                        low_player = all_players[-1]  # Lowest reaction time (good player)
-
-                        # If the slowest player is the same as the last game, select the second-lowest
-                        if 'previous_low_player' in st.session_state and st.session_state.previous_low_player == low_player['name']:
-                            if len(all_players) > 1:
-                                second_low_player = all_players[-2]  # Second-lowest player
-                                low_player = second_low_player
-                            else:
-                                # If there's only one player, we'll just keep the low player
-                                low_player = all_players[0]
-                        
-                        # Store the current low player for comparison in the next session
-                        st.session_state.previous_low_player = low_player['name']
-
-                        # Display the cards with a polished design
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            st.markdown(f"""
-                                <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                                    <h3>💪 Raskeste gooner</h3>
-                                    <h4><strong>{top_player['name']}</strong></h4>
-                                </div>
-                            """, unsafe_allow_html=True)
-
-                        with col2:
-                            # Display the slowest player (unless it is the same as the last game)
-                            low_player_display = low_player['name'] if low_player != second_low_player else second_low_player['name']
-                            st.markdown(f"""
-                                <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                                    <h3>🍺 Tregeste pils-bitch</h3>
-                                    <h4><strong>{low_player_display}</strong></h4>
-                                </div>
-                            """, unsafe_allow_html=True)
-        #else
-        else:
-            # If no new games, check all available games in memory
-            games_in_memory.sort(key=lambda x: x["game_finished_at"], reverse=True)
-
-            if games_in_memory:  # Ensure there are games in memory
-                # Create a picker for all games based on timestamp and map
-                game_options = [
-                    f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {game['game_id']}"
-                    for game in games_in_memory  # Use all games in memory
-                ]
-                selected_game = st.selectbox("Select a game", game_options)
-
-                # Find the selected game from the memory
-                selected_game_id = selected_game.split(" - ")[-1]  # Extract the game_id
-                selected_game_details = next(
-                    (game for game in games_in_memory if game["game_id"] == selected_game_id), None
-                )
-
-                if selected_game_details:
-                    game_id = selected_game_details["game_id"]
-                    game_details = fetch_game_details(game_id)
-
-                    all_players = []
-
-                    # Loop through players in the selected game
-                    for player in game_details.get("playerStats", []):
-                        raw_name = player["name"]
-                        display_name = NAME_MAPPING.get(raw_name, raw_name)  # Convert API name to standard name
-
-                        if display_name in ALLOWED_PLAYERS:
-                            all_players.append({
-                                "name": display_name,  # Store only the standardized name
-                                "reactionTime": player.get("reactionTime", 0)  # Default to 0 if missing
-                            })
-
-                    # Sort players by reaction time (fastest first)
-                    all_players.sort(key=itemgetter("reactionTime"))
-
-                    if all_players:
-                        # Determine the top player for the current game (fastest reaction time)
-                        top_player = all_players[0]  # Highest reaction time (bad player)
-
-                        # Determine the low player for the current game (slowest reaction time)
-                        low_player = all_players[-1]  # Lowest reaction time (good player)
-
-                        # Check if low player was the same in the previous game
-                        previous_game_low_player = None
-
-                        for game in games_in_memory:
-                            if game["game_id"] != selected_game_id:
-                                game_details_prev = fetch_game_details(game["game_id"])
-
-                                prev_all_players = [
-                                    {
-                                        "name": NAME_MAPPING.get(player["name"], player["name"]),  # Normalize names
-                                        "reactionTime": player.get("reactionTime", 0)
-                                    }
-                                    for player in game_details_prev.get("playerStats", [])
-                                    if NAME_MAPPING.get(player["name"], player["name"]) in ALLOWED_PLAYERS
-                                ]
-
-                                prev_all_players.sort(key=itemgetter("reactionTime"))
-
-                                if prev_all_players:
-                                    previous_game_low_player = prev_all_players[-1]["name"]  # Get the low player from the previous game
-                                break
-
-                        # If the low player is the same as the previous game, select the second-lowest
-                        if previous_game_low_player and low_player['name'] == previous_game_low_player:
-                            if len(all_players) > 1:
-                                second_low_player = all_players[-2]  # Second-lowest player
-                                low_player = second_low_player
-                            else:
-                                # If only one player, we'll just keep the low player
-                                low_player = all_players[0]
-
-                        # Display the cards with a polished design
-                        col1, col2 = st.columns(2)
-
-                        with col1:
-                            st.markdown(f"""
-                                <div style="padding: 10px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                                    <h3>💪 Raskeste gooner</h3>
-                                    <h4><strong>{top_player['name']}</strong></h4>
-                                </div>
-                            """, unsafe_allow_html=True)
-
-                        with col2:
-                            # Display the slowest player (unless it is the same as the last game)
-                            low_player_display = low_player['name'] if low_player != second_low_player else second_low_player['name']
-                            st.markdown(f"""
-                                <div style="padding: 10px; background-color: #F44336; color: white; border-radius: 10px; text-align: center; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
-                                    <h3>🍺 Tregeste pils-bitch</h3>
-                                    <h4><strong>{low_player_display}</strong></h4>
-                                </div>
-                            """, unsafe_allow_html=True)
-
-        if new_games:
-            st.write("### Nye bubbegames")
-            for new_game in new_games:
-                game_id = new_game["game_id"]
-                map_name = new_game["map_name"]
-                match_result = new_game["match_result"]
-                scores = new_game["scores"]
-                st.write(f"**{map_name} - {match_result.capitalize()} ({scores[0]}:{scores[1]})**")
-                st.write(f"Game ID: {game_id}")
-
-            st.write(f"### Total Bubbegames lagret over valgt tidsrom: {len(games_in_memory)}")
-        else:
-            st.write("### Ingen nye bubbegames funnet.")
-            st.write(f"Total Bubbegames lagret over valgt tidsrom: {len(games_in_memory)}")
-
-    except Exception as e:
-        st.error(f"An error occurred while fetching new games: {e}")
-
-# Function to refresh data manually
-def refresh_data():
-    st.session_state["games_data"] = get_cached_games()
-
+# Input Data Page
 def input_data_page():
     st.header("Input BubbeData")
     days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
+    games_in_memory = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
-    try:
-        # Load games only if not already in session state
-        if "games_data" not in st.session_state:
-            st.session_state["games_data"] = get_cached_games(days)
+    for game in games_in_memory:
+        game_id = game["game_id"]
+        game_details = fetch_game_details(game_id)
+        if not game_details:
+            continue
 
-        # Sort games by newest first
-        games_in_memory = sorted(st.session_state["games_data"], key=lambda game: game["game_finished_at"], reverse=True)
+        with st.expander(f"{game['map_name']} - {game['match_result'].capitalize()} ({game['scores'][0]}:{game['scores'][1]}) - {game['game_finished_at'].strftime('%d.%m.%y %H:%M')}"):
+            konsum_data = st.session_state.get(game_id, fetch_konsum_data_for_game(game_id) or {})
+            st.session_state[game_id] = konsum_data
 
-        for game in games_in_memory:
-            game_id = game["game_id"]
-            map_name = game["map_name"]
-            match_result = game["match_result"]
-            game_finished_at = game["game_finished_at"]
-            scores = [game["score_team1"], game["score_team2"]]
+            for player in game_details.get("playerStats", []):
+                mapped_name = NAME_MAPPING.get(player["name"], player["name"])
+                if mapped_name in ALLOWED_PLAYERS:
+                    st.write(f"**{mapped_name}** - K/D: {player['kdRatio']}, ADR: {player['dpr']}, HLTV Rating: {player['hltvRating']}")
+                    previous_beer = konsum_data.get(mapped_name, {}).get('beer', 0)
+                    previous_water = konsum_data.get(mapped_name, {}).get('water', 0)
 
-            game_details = fetch_game_details(game_id)
+                    beers = st.number_input(f"How many pils på {mapped_name}?", min_value=0, value=previous_beer, step=1, key=f"{mapped_name}-beer-{game_id}")
+                    water = st.number_input(f"How mye hydrering på {mapped_name}?", min_value=0, value=previous_water, step=1, key=f"{mapped_name}-water-{game_id}")
 
-            match_time = game_finished_at.strftime("%d.%m.%y %H:%M")
+                    if beers != previous_beer or water != previous_water:
+                        save_konsum_data(game_id, mapped_name, beers, water)
+                        st.session_state[game_id][mapped_name] = {'beer': beers, 'water': water}
+                        st.success(f"Data for {mapped_name} updated: {beers} Beers, {water} Glasses of Water")
 
-            # Store konsum data in session state to prevent reloading
-            if game_id not in st.session_state:
-                st.session_state[game_id] = fetch_konsum_data_for_game(game_id) or {}
-
-            konsum_data = st.session_state[game_id]
-
-            with st.expander(f"{map_name} - {match_result.capitalize()} ({scores[0]}:{scores[1]}) - {match_time}"):
-
-                st.write("### Player Stats")
-                for player in game_details.get("playerStats", []):
-                    raw_name = player["name"]  # Get the name directly from API
-                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)  # Convert to standardized name
-
-                    if mapped_name in ALLOWED_PLAYERS:
-                        st.write(f"**{mapped_name}** - K/D: {player['kdRatio']}, ADR: {player['dpr']}, HLTV Rating: {player['hltvRating']}")
-
-                        previous_beer = konsum_data.get(mapped_name, {}).get('beer', 0)
-                        previous_water = konsum_data.get(mapped_name, {}).get('water', 0)
-
-                        # Input fields for beer and water
-                        beers = st.number_input(f"How many pils på {mapped_name}?", min_value=0, value=previous_beer, step=1, key=f"{mapped_name}-beer-{game_id}")
-                        water = st.number_input(f"How mye hydrering på {mapped_name}?", min_value=0, value=previous_water, step=1, key=f"{mapped_name}-water-{game_id}")
-
-                        # Save data only if values change
-                        if beers != previous_beer or water != previous_water:
-                            save_konsum_data(game_id, mapped_name, beers, water)
-                            st.session_state[game_id][mapped_name] = {'beer': beers, 'water': water}
-                            st.success(f"Data for {mapped_name} updated: {beers} Beers, {water} Glasses of Water")
-
-    except Exception as e:
-        st.error(f"An error occurred while processing game data: {e}")
-
-@st.cache_data(ttl=5 * 60)
-def get_cached_konsum(game_id):
-    konsum_in_memory = fetch_konsum_data_for_game(game_id)
-    return konsum_in_memory
-
-    # Mapping from display names to API keys
+# Stats Page
 stat_display_mapping = {
-    "K/D Ratio": 'kdRatio',
-    "ADR (Average Damage per Round)": "dpr",  # "adr" is the display name, "dpr" is the key in the API response
-    "HLTV Rating": "hltvRating",
-    "Enemies Flashed": "flashbangThrown",
-    "Friends Flashed": "flashbangHitFoe",
-    "Avg. Unused Utility": "utilityOnDeathAvg",
-    "Trade Kill Opportunities": "tradeKillOpportunities",
-    "Trade Kill Attempts": "tradeKillAttempts",
-    "Trade Kill Success": "tradeKillsSucceeded",
-    "2k Kills": "multi2k",
-    "3k Kills": "multi3k",
-    "4k Kills": "multi4k",
-    "5k Kills": "multi5k",
-    "Flashbang Leading to Kill": "flashbangLeadingToKill",
-    "Reaction Time": "reactionTime",
-    "HE Grenades Thrown": "heThrown",
-    "Molotovs Thrown": "molotovThrown",
+    "K/D Ratio": 'kdRatio', "ADR (Average Damage per Round)": "dpr", "HLTV Rating": "hltvRating",
+    "Enemies Flashed": "flashbangThrown", "Friends Flashed": "flashbangHitFoe", "Avg. Unused Utility": "utilityOnDeathAvg",
+    "Trade Kill Opportunities": "tradeKillOpportunities", "Trade Kill Attempts": "tradeKillAttempts",
+    "Trade Kill Success": "tradeKillsSucceeded", "2k Kills": "multi2k", "3k Kills": "multi3k",
+    "4k Kills": "multi4k", "5k Kills": "multi5k", "Flashbang Leading to Kill": "flashbangLeadingToKill",
+    "Reaction Time": "reactionTime", "HE Grenades Thrown": "heThrown", "Molotovs Thrown": "molotovThrown",
     "Smokes Thrown": "smokeThrown"
 }
-
-# Reverse mapping for stat names
-reverse_mapping = {v: k for k, v in stat_display_mapping.items()}
-
-# Function to safely get the player stat (checking if stat exists in the player dictionary)
-def get_player_stat(player, stat_key):
-    return player.get(stat_key, 0)  # Return 0 if the stat is not found
 
 def Stats():
     st.header("Game Stats Bar Chart")
     days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
-    
-    try:
-        # Stat selection dropdown
-        stat_options = list(stat_display_mapping.keys()) + ["Beer", "Water"]
-        selected_stat_display_name = st.selectbox("Select a stat to display in the bar chart:", stat_options)
+    stat_options = list(stat_display_mapping.keys()) + ["Beer", "Water"]
+    selected_stat_display_name = st.selectbox("Select a stat to display in the bar chart:", stat_options)
+    selected_stat = stat_display_mapping.get(selected_stat_display_name, selected_stat_display_name.lower())
 
-        # Get the actual stat key
-        selected_stat = stat_display_mapping.get(selected_stat_display_name, selected_stat_display_name.lower())
-
+    with st.spinner("Fetching games and stats..."):
+        games_in_memory = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
         player_stats = []
 
-        with st.spinner("Fetching games and stats...Checking if Tobias gay?"):
+        for game in games_in_memory:
+            game_details = fetch_game_details(game["game_id"])
+            konsum_data = fetch_konsum_data_for_game(game["game_id"]) or {}
+            game_time = game["game_finished_at"].strftime("%d.%m.%y %H:%M")
 
-            # Get games and sort by finished time (oldest first)
-            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"])
+            for player in game_details.get("playerStats", []):
+                mapped_name = NAME_MAPPING.get(player["name"], player["name"])
+                if mapped_name in ALLOWED_PLAYERS:
+                    stat_value = konsum_data.get(mapped_name, {}).get(selected_stat, 0) if selected_stat in ["beer", "water"] else player.get(selected_stat, 0)
+                    player_stats.append({
+                        "Game": f"{game['map_name']} ({game_time})", "Player": mapped_name,
+                        "Stat Type": selected_stat_display_name, "Stat Value": stat_value
+                    })
 
-            for game in games_in_memory:
-                game_id = game["game_id"]
-                map_name = game["map_name"]
-                game_time = pd.to_datetime(game["game_finished_at"]).strftime("%d.%m.%y %H:%M")  # Format time
-                
-                game_details = fetch_game_details(game_id)
-                konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
+        if player_stats:
+            df = pd.DataFrame(player_stats)
+            fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group", title=f"{selected_stat_display_name} per Player in Recent Games")
+            st.plotly_chart(fig)
+            if st.button("Klikk her for å laste gamedata i CSV format"):
+                Download_Game_Stats(days, player_stats)
 
-                for player in game_details.get("playerStats", []):
-                    raw_name = player["name"]  # Get the name directly from API
-                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)  # Map to the standardized name
-                    
-                    if mapped_name in ALLOWED_PLAYERS:
-                        # Get stat value
-                        if selected_stat == "beer":
-                            stat_value = konsum_data.get(mapped_name, {}).get("beer", 0)
-                        elif selected_stat == "water":
-                            stat_value = konsum_data.get(mapped_name, {}).get("water", 0)
-                        else:
-                            stat_value = get_player_stat(player, selected_stat)
+# Download Game Stats
+def Download_Game_Stats(days, player_stats=None):
+    if not player_stats:
+        player_stats = []
+        games_in_memory = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
+        for game in games_in_memory:
+            game_details = fetch_game_details(game["game_id"])
+            konsum_data = fetch_konsum_data_for_game(game["game_id"]) or {}
+            for player in game_details.get("playerStats", []):
+                mapped_name = NAME_MAPPING.get(player["name"], player["name"])
+                if mapped_name in ALLOWED_PLAYERS:
+                    player_data = {"Game": game["map_name"], "Player": mapped_name, "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M")}
+                    player_data.update({k: player.get(v, 0) for k, v in stat_display_mapping.items()})
+                    player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
+                    player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
+                    player_stats.append(player_data)
 
-                        # Add to player stats list
-                        player_stats.append({
-                            "Game": f"{map_name} ({game_time})",  # Add time to avoid duplicate map names
-                            "Player": mapped_name,  # Use mapped name here
-                            "Stat Type": selected_stat_display_name,
-                            "Stat Value": stat_value,
-                            "Game Time": game_time  # Keep for sorting
-                        })
+    df_full = pd.DataFrame(player_stats)
+    csv_buffer = StringIO()
+    df_full.to_csv(csv_buffer, index=False)
+    st.download_button(label="Klikk her for å laste ned CSV fil", data=csv_buffer.getvalue(), file_name="all_game_stats.csv", mime="text/csv")
 
-            if player_stats:
-                # Convert stats to DataFrame and sort
-                df = pd.DataFrame(player_stats)
-                df = df.sort_values(by=["Game Time"], ascending=True)  # Ensure correct order
-
-                # Plot the bar chart
-                fig = px.bar(df, x="Player", y="Stat Value", color="Game", barmode="group",
-                             title=f"{selected_stat_display_name} per Player in Recent Games")
-                st.plotly_chart(fig)
-
-                # **Add CSV Download Button**
-                if st.button("Klikk her for å laste gamedata i CSV format"):
-                    Download_Game_Stats(days)
-
-            else:
-                st.warning("No data available.")
-
-    except Exception as e:
-        st.error(f"An error occurred while generating the bar chart: {e}")
-
-def Download_Game_Stats(days):
-    try:
-        all_game_data = []
-
-        with st.spinner("Henter game data..."):
-            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"], reverse=True)
-
-            for game in games_in_memory:
-                game_id = game["game_id"]
-                map_name = game["map_name"]
-                game_details = fetch_game_details(game_id)
-                konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
-
-                for player in game_details.get("playerStats", []):
-                    raw_name = player["name"]  # Get the name directly from API
-                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)  # Map to the standardized name
-                    
-                    if mapped_name in ALLOWED_PLAYERS:
-                        # Prepare full stats dictionary for CSV
-                        player_data = {
-                            "Game": map_name,
-                            "Player": mapped_name,  # Use mapped name here
-                            "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
-                        }
-
-                        # Add all game stats
-                        for display_name, stat_key in stat_display_mapping.items():
-                            player_data[display_name] = get_player_stat(player, stat_key)
-
-                        # Add Beer & Water
-                        player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
-                        player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
-
-                        all_game_data.append(player_data)
-
-        if all_game_data:
-            # Convert to DataFrame and export to CSV
-            df_full = pd.DataFrame(all_game_data)
-            csv_buffer = StringIO()
-            df_full.to_csv(csv_buffer, index=False)
-            csv_data = csv_buffer.getvalue()
-
-            # Display download button
-            st.download_button(
-                label="Klikk her for å laste ned CSV fil",
-                data=csv_data,
-                file_name="all_game_stats.csv",
-                mime="text/csv"
-            )
-
-        else:
-            st.warning("No game data available for download.")
-
-    except Exception as e:
-        st.error(f"An error occurred while exporting the CSV: {e}")
-
+# Motivation Page
 def motivation_page():
     st.title("Get Skibid going")
-    
     st.write("Bubbesnacks:")
-    
     st.markdown("""
-    <iframe width="600" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0"  
-    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"  
-    allowfullscreen></iframe>  
+        <iframe width="600" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0"  
+        frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"  
+        allowfullscreen></iframe>
     """, unsafe_allow_html=True)
 
-#UX
+# UI Setup
 st.image("bubblogo2.png", width=75)
-# Add the header text
 st.markdown("<h1 style='text-align: center; font-weight: bold;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
 
-#navigation
 col1, col2, col3, col4 = st.columns(4)
-
 with col1:
     if st.button("🏠 Hjem", use_container_width=True):
         st.session_state["page"] = "Home"
-
 with col2:
     if st.button("📝 Input BubbeData", use_container_width=True):
         st.session_state["page"] = "Input Data"
-
 with col3:
     if st.button("📊 Stats", use_container_width=True):
         st.session_state["page"] = "Stats"
-
 with col4:
     if st.button("🚽 Motivasjon", use_container_width=True):
         st.session_state["page"] = "Motivasjon"
 
-# **Handle Page Display**
 if "page" not in st.session_state:
-    st.session_state["page"] = "Home"  # Default page
+    st.session_state["page"] = "Home"
 
 if st.session_state["page"] == "Home":
     home_page()
