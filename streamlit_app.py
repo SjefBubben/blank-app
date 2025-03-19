@@ -323,9 +323,7 @@ def input_data_page():
     st.header("Input BubbeData")
     days = st.number_input("Skriv inn antall dager tilbake i tid", min_value=1, max_value=7, value=2)
     # Add a refresh button at the top
-    if st.button("Refresh Data fra Sheets"):
-        refresh_data()
-        st.experimental_rerun()
+
 
     try:
         # Load games only if not already in session state
@@ -356,21 +354,24 @@ def input_data_page():
 
                 st.write("### Player Stats")
                 for player in game_details.get("playerStats", []):
-                    if player["name"] in ALLOWED_PLAYERS:
-                        st.write(f"**{player['name']}** - K/d: {player['kdRatio']}, ADR: {player['dpr']}, HLTV Rating: {player['hltvRating']}")
+                    raw_name = player["name"].lower()  # Normalize API name
+                    display_name = NAME_MAPPING.get(raw_name, player["name"])  # Map to a standard name if available
 
-                        previous_beer = konsum_data.get(player["name"], {}).get('beer', 0)
-                        previous_water = konsum_data.get(player["name"], {}).get('water', 0)
+                    if display_name in ALLOWED_PLAYERS:
+                        st.write(f"**{display_name}** - K/D: {player['kdRatio']}, ADR: {player['dpr']}, HLTV Rating: {player['hltvRating']}")
+
+                        previous_beer = konsum_data.get(display_name, {}).get('beer', 0)
+                        previous_water = konsum_data.get(display_name, {}).get('water', 0)
 
                         # Input fields for beer and water
-                        beers = st.number_input(f"How many pils på {player['name']}?", min_value=0, value=previous_beer, step=1, key=f"{player['name']}-beer-{game_id}")
-                        water = st.number_input(f"How mye hydrering på {player['name']}?", min_value=0, value=previous_water, step=1, key=f"{player['name']}-water-{game_id}")
+                        beers = st.number_input(f"How many pils på {display_name}?", min_value=0, value=previous_beer, step=1, key=f"{display_name}-beer-{game_id}")
+                        water = st.number_input(f"How mye hydrering på {display_name}?", min_value=0, value=previous_water, step=1, key=f"{display_name}-water-{game_id}")
 
                         # Save data only if values change
                         if beers != previous_beer or water != previous_water:
-                            save_konsum_data(game_id, player["name"], beers, water)
-                            st.session_state[game_id][player["name"]] = {'beer': beers, 'water': water}
-                            st.success(f"Data for {player['name']} updated: {beers} Beers, {water} Glasses of Water")
+                            save_konsum_data(game_id, display_name, beers, water)
+                            st.session_state[game_id][display_name] = {'beer': beers, 'water': water}
+                            st.success(f"Data for {display_name} updated: {beers} Beers, {water} Glasses of Water")
 
     except Exception as e:
         st.error(f"An error occurred while processing game data: {e}")
