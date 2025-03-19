@@ -201,7 +201,7 @@ def home_page():
                                     <h4><strong>{low_player_display}</strong></h4>
                                 </div>
                             """, unsafe_allow_html=True)
-
+        #else
         else:
             # If no new games, check all available games in memory
             games_in_memory.sort(key=lambda x: x["game_finished_at"], reverse=True)
