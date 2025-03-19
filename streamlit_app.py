@@ -143,13 +143,38 @@ def home_page():
 def input_data_page():
     st.header("Input BubbeData")
     days = st.number_input("Days back", min_value=1, max_value=7, value=2)
-    games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
+    games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
+
+    if not games:
+        st.warning("No games found in the selected timeframe.")
+        return
 
     for game in games:
-        details = fetch_game_details(game["game_id"])
+        # Debug: Show the raw game data to diagnose
+        st.write("Debug - Game Data:", game)
+
+        details = fetch_game_details(game.get("game_id"))
         if not details:
+            st.write(f"Skipping game {game.get('game_id', 'unknown')} - no details available.")
             continue
-        with st.expander(f"{game['map_name']} - {game['match_result']} ({game['scores'][0]}:{game['scores'][1]}) - {game['game_finished_at'].strftime('%d.%m.%y %H:%M')}"):
+
+        # Safely access game data with defaults
+        map_name = game.get("map_name", "Unknown")
+        match_result = game.get("match_result", "Unknown")
+        scores = game.get("scores", [0, 0])
+        game_finished_at = game.get("game_finished_at")
+        
+        # Ensure game_finished_at is a datetime object
+        if isinstance(game_finished_at, str):
+            try:
+                game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            except ValueError:
+                game_finished_at = datetime.now()  # Fallback to now if parsing fails
+        elif not isinstance(game_finished_at, datetime):
+            game_finished_at = datetime.now()  # Fallback if not a datetime
+
+        label = f"{map_name} - {match_result} ({scores[0]}:{scores[1]}) - {game_finished_at.strftime('%d.%m.%y %H:%M')}"
+        with st.expander(label):
             konsum = st.session_state.get(game["game_id"], fetch_konsum_data_for_game(game["game_id"]) or {})
             st.session_state[game["game_id"]] = konsum
 
