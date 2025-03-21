@@ -10,9 +10,11 @@ from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_ga
 # API Endpoints
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
-STEAM_ID = "76561197983741618"
 
-# Player Name Mapping
+# List of SteamIDs to fetch games from
+STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
+
+# Player Name Mapping (unchanged)
 NAME_MAPPING = {
     "JimmyJimbob": "Jeppe", "Jimmy": "Jeppe", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
     "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "PappaBubben", "tobbelobben": "PappaBubben",
@@ -40,49 +42,53 @@ def fetch_game_details(game_id):
 def fetch_new_games(days=2):
     saved_games = fetch_games_within_last_48_hours(days)
     saved_game_ids = {g["game_id"] for g in saved_games}
-    profile_data = fetch_profile(STEAM_ID)
-    if not profile_data:
-        return []
-
     new_games = []
-    games_to_fetch = []
+    games_to_fetch = set()
     now = datetime.utcnow()
 
-    for game in profile_data.get("games", []):
-        game_id = game.get("gameId")
-        if game_id not in saved_game_ids:
-            try:
-                finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
-                if finished_at > now - timedelta(days=days):
-                    # Convert datetime to string for storage
-                    finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
-                    new_games.append({
-                        "game_id": game_id,
-                        "map_name": game.get("mapName", "Unknown"),
-                        "match_result": game.get("matchResult", "Unknown"),
-                        "scores": game.get("scores", [0, 0]),
-                        "game_finished_at": finished_at  # Keep as datetime for in-memory use
-                    })
-                    games_to_fetch.append(game_id)
-            except (ValueError, KeyError):
-                continue
+    # Fetch games from all SteamIDs
+    for steam_id in STEAM_IDS:
+        profile_data = fetch_profile(steam_id)
+        if not profile_data:
+            continue
 
+        for game in profile_data.get("games", []):
+            game_id = game.get("gameId")
+            if game_id not in saved_game_ids and game_id not in {g["game_id"] for g in new_games}:
+                try:
+                    finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+                    if finished_at > now - timedelta(days=days):
+                        finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
+                        new_games.append({
+                            "game_id": game_id,
+                            "map_name": game.get("map_name", "Unknown"),
+                            "match_result": game.get("matchResult", "Unknown"),
+                            "scores": game.get("scores", [0, 0]),
+                            "game_finished_at": finished_at  # Keep as datetime for in-memory use
+                        })
+                        games_to_fetch.add(game_id)
+                except (ValueError, KeyError):
+                    continue
+
+    # Save new games to Google Sheets
     for game in new_games:
-        # Pass string version of game_finished_at to save_game_data
         save_game_data(
             game["game_id"],
             game["map_name"],
             game["match_result"],
             game["scores"][0],
             game["scores"][1],
-            game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")  # Convert to string
+            game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")
         )
 
+    # Fetch game details for new games
     game_details = {gid: fetch_game_details(gid) for gid in games_to_fetch if fetch_game_details(gid)}
     for game in new_games:
         game["details"] = game_details.get(game["game_id"], {})
-    
+
     return new_games
+
+# Rest of the functions (get_cached_games, get_cached_konsum, etc.) remain unchanged unless further customization is needed
 
 @st.cache_data(ttl=300)
 def get_cached_games(days=2):
