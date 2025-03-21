@@ -16,7 +16,7 @@ STEAM_ID = "76561197983741618"
 NAME_MAPPING = {
     "JimmyJimbob": "Jeppe", "Jimmy": "Jeppe", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
     "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "PappaBubben",
-    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0", "Johlyn": "Patient 0"
+    "Bøghild": "Bøghild", "Nish": "Nish", "Nishinosan": "Nish", "Zohan": "Patient 0", "Johlyn": "Patient 0"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
@@ -286,7 +286,7 @@ def Download_Game_Stats(days):
 
 # Motivation Page
 def motivation_page():
-    st.header("Motivation")
+    st.header("Get skibid going!")
     st.markdown("""
         <iframe width="560" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0" 
         frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
