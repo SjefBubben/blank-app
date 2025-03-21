@@ -121,7 +121,6 @@ def home_page():
         return
 
     # Debug: Check the games data
-    st.write("Debug: Games data", games[:2])  # Display first 2 games for inspection
 
     game_options = [f"{g.get('map_name', 'Unknown')} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
     selected_game = st.selectbox("Pick a game", game_options)
