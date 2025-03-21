@@ -38,16 +38,13 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("games")
 
-    # Ensure scores are integers
     score_team1 = int(score_team1)
     score_team2 = int(score_team2)
 
-    # Check if the game_id already exists
     existing_games = sheet.get_all_values()
-    existing_game_ids = {row[0] for row in existing_games[1:]}  # Skip header row
+    existing_game_ids = {row[0] for row in existing_games[1:]}
 
     if game_id not in existing_game_ids:
-        # game_finished_at is already a string from fetch_new_games
         sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
 
 def save_konsum_data(game_id, player_name, beer, water_glasses):
@@ -70,7 +67,6 @@ def save_konsum_data(game_id, player_name, beer, water_glasses):
 
 def fetch_games_within_last_48_hours(days=2):
     try:
-        # Connect to Google Sheets
         client = connect_to_gsheet()
         sheet = client.open_by_key(SHEET_ID).worksheet("games")
         data = sheet.get_all_values()
@@ -79,28 +75,17 @@ def fetch_games_within_last_48_hours(days=2):
             print("❌ No data found in Google Sheets")
             return []
 
-        # Convert raw data to DataFrame
-        df = pd.DataFrame(data[1:], columns=data[0])
-
-        # Convert game_finished_at (string) to datetime
+        df = pd.DataFrame(data[1:], columns=data[0])  # Headers should include "map_name"
         df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
-
-        # Define the cutoff time (UTC)
         cutoff_time = datetime.utcnow() - timedelta(days=days)
-
-        # Filter games within the last 'days'
         df = df[df["game_finished_at"] >= cutoff_time]
 
-        # Ensure scores are integers
         df["score_team1"] = df["score_team1"].astype(int)
         df["score_team2"] = df["score_team2"].astype(int)
 
-        # Convert the filtered DataFrame back to a dictionary list
         games_list = df.to_dict(orient="records")
         print(f"✅ Retrieved {len(games_list)} games from Google Sheets: {games_list}")
-
         return games_list
-
     except Exception as e:
         print(f"⚠️ Error fetching games: {e}")
         return []
