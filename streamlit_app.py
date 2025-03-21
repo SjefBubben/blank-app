@@ -54,19 +54,29 @@ def fetch_new_games(days=2):
             try:
                 finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
                 if finished_at > now - timedelta(days=days):
+                    # Convert datetime to string for storage
+                    finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                     new_games.append({
                         "game_id": game_id,
                         "map_name": game.get("mapName", "Unknown"),
                         "match_result": game.get("matchResult", "Unknown"),
                         "scores": game.get("scores", [0, 0]),
-                        "game_finished_at": finished_at
+                        "game_finished_at": finished_at  # Keep as datetime for in-memory use
                     })
                     games_to_fetch.append(game_id)
             except (ValueError, KeyError):
                 continue
 
     for game in new_games:
-        save_game_data(game["game_id"], game["map_name"], game["match_result"], game["scores"][0], game["scores"][1], game["game_finished_at"])
+        # Pass string version of game_finished_at to save_game_data
+        save_game_data(
+            game["game_id"],
+            game["map_name"],
+            game["match_result"],
+            game["scores"][0],
+            game["scores"][1],
+            game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")  # Convert to string
+        )
 
     game_details = {gid: fetch_game_details(gid) for gid in games_to_fetch if fetch_game_details(gid)}
     for game in new_games:
