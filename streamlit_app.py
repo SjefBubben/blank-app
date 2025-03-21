@@ -115,12 +115,12 @@ def get_player_stat(player, stat_key):
 # Home Page (No Session State)
 def home_page():
     days = st.number_input("Days back", min_value=1, max_value=7, value=2)
-    with st.spinner("Fetching games..."):
+    with st.spinner("Fetching games from all profiles..."):
         new_games = fetch_new_games(days)
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
-        st.warning("No games found.")
+        st.warning("No games found across all profiles.")
         return
 
     game_options = [f"{g['map_name']} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
@@ -163,7 +163,7 @@ def home_page():
         st.subheader("New Games")
         for g in new_games:
             st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
-    st.write(f"Total games: {len(games)}")
+    st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
 def input_data_page():
