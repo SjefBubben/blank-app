@@ -46,7 +46,6 @@ def fetch_new_games(days=2):
     games_to_fetch = set()
     now = datetime.utcnow()
 
-    # Fetch games from all SteamIDs
     for steam_id in STEAM_IDS:
         profile_data = fetch_profile(steam_id)
         if not profile_data:
@@ -61,16 +60,15 @@ def fetch_new_games(days=2):
                         finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                         new_games.append({
                             "game_id": game_id,
-                            "map_name": game.get("map_name", "Unknown"),
+                            "map_name": game.get("mapName", "Unknown"),  # Mapping API's mapName to map_name
                             "match_result": game.get("matchResult", "Unknown"),
                             "scores": game.get("scores", [0, 0]),
-                            "game_finished_at": finished_at  # Keep as datetime for in-memory use
+                            "game_finished_at": finished_at
                         })
                         games_to_fetch.add(game_id)
                 except (ValueError, KeyError):
                     continue
 
-    # Save new games to Google Sheets
     for game in new_games:
         save_game_data(
             game["game_id"],
@@ -81,7 +79,6 @@ def fetch_new_games(days=2):
             game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")
         )
 
-    # Fetch game details for new games
     game_details = {gid: fetch_game_details(gid) for gid in games_to_fetch if fetch_game_details(gid)}
     for game in new_games:
         game["details"] = game_details.get(game["game_id"], {})
@@ -123,7 +120,10 @@ def home_page():
         st.warning("No games found across all profiles.")
         return
 
-    game_options = [f"{g['map_name']} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
+    # Debug: Check the games data
+    st.write("Debug: Games data", games[:2])  # Display first 2 games for inspection
+
+    game_options = [f"{g.get('map_name', 'Unknown')} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
     selected_game = st.selectbox("Pick a game", game_options)
     game_id = selected_game.split(" - ")[-1]
     game_data = next((g for g in games if g["game_id"] == game_id), None)
