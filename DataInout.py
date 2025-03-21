@@ -38,11 +38,16 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("games")
 
+    # Ensure scores are integers
+    score_team1 = int(score_team1)
+    score_team2 = int(score_team2)
+
     # Check if the game_id already exists
     existing_games = sheet.get_all_values()
     existing_game_ids = {row[0] for row in existing_games[1:]}  # Skip header row
 
     if game_id not in existing_game_ids:
+        # game_finished_at is already a string from fetch_new_games
         sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
 
 def save_konsum_data(game_id, player_name, beer, water_glasses):
@@ -77,14 +82,18 @@ def fetch_games_within_last_48_hours(days=2):
         # Convert raw data to DataFrame
         df = pd.DataFrame(data[1:], columns=data[0])
 
-        # Convert game_finished_at to timezone-aware datetime (UTC)
-        df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], errors="coerce", utc=True)
+        # Convert game_finished_at (string) to datetime
+        df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
 
-        # Define the cutoff time (48 hours ago) as timezone-aware datetime
-        cutoff_time = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=days)
+        # Define the cutoff time (UTC)
+        cutoff_time = datetime.utcnow() - timedelta(days=days)
 
-        # Filter games within the last 48 hours using timezone-aware datetime comparison
+        # Filter games within the last 'days'
         df = df[df["game_finished_at"] >= cutoff_time]
+
+        # Ensure scores are integers
+        df["score_team1"] = df["score_team1"].astype(int)
+        df["score_team2"] = df["score_team2"].astype(int)
 
         # Convert the filtered DataFrame back to a dictionary list
         games_list = df.to_dict(orient="records")
