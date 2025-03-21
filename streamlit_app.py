@@ -16,7 +16,7 @@ STEAM_ID = "76561197983741618"
 NAME_MAPPING = {
     "JimmyJimbob": "Jeppe", "Jimmy": "Jeppe", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
     "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "PappaBubben",
-    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0"
+    "Bøghild": "Bøghild", "Nish": "Nish", "Zohan": "Patient 0", "Johlyn": "Patient 0"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
