@@ -150,7 +150,7 @@ def home_page():
                         <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
                             <h3>💪 Raskeste gooner</h3>
                             <h4>{', '.join(p['name'] for p in top_players)}</h4>
-                            <h4>{details["mapName"]} - ({datetime.strptime(details["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d.%m.%Y %H:%M")})</h4>
+                            <h4>{details["mapName"]} <br> ({datetime.strptime(details["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d.%m.%Y %H:%M")})</h4>
                         </div>
                     """, unsafe_allow_html=True)
                 with col2:
@@ -158,7 +158,7 @@ def home_page():
                         <div style="padding: 15px; background-color: #F44336; color: white; border-radius: 10px; text-align: center;">
                             <h3>🍺 Tregeste pils-bitch</h3>
                             <h4>{', '.join(p['name'] for p in low_players)}</h4>
-                            <h4>{details["mapName"]} - ({datetime.strptime(details["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d.%m.%Y %H:%M")})</h4>
+                            <h4>{details["mapName"]} <br> ({datetime.strptime(details["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%d.%m.%Y %H:%M")})</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
