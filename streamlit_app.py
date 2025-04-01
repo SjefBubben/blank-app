@@ -133,7 +133,7 @@ def home_page():
                         <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
                             <h3>💪 Raskeste gooner</h3>
                             <h4>{', '.join(p['name'] for p in top_players)}</h4>
-                            <h3>{p['mapName']}</h3>
+                            <h3>p['mapName']</h3>
                         </div>
                     """, unsafe_allow_html=True)
                 with col2:
