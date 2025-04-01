@@ -98,7 +98,7 @@ def get_player_stat(player, stat_key):
 
 # Home Page (No Session State)
 def home_page():
-    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
+    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
     with st.spinner("Fetching games..."):
         new_games = fetch_new_games(days)
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
