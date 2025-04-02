@@ -130,7 +130,9 @@ def home_page():
         if details:
             players = [
                 {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 0),
-                 "tradeKillAttemptsPercentage": p.get("tradeKillAttemptsPercentage", 0)}
+                 "tradeKillAttemptsPercentage": p.get("tradeKillAttemptsPercentage", 0),
+                 "utilityOnDeathAvg": p.get("utilityOnDeathAvg", 0),
+                 "hltvRating": p.get("hltvRating", 0)}
                 for p in details.get("playerStats", []) if NAME_MAPPING.get(p["name"], p["name"]) in ALLOWED_PLAYERS
             ]
             if players:
