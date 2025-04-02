@@ -147,8 +147,8 @@ def home_page():
                 best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == best_trade]
                 worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == worst_trade]
 
-                worst_util = max(p["utilityOnDeathAvg"] for p in players)  # High is bad
-                best_hltv = max(p["hltvRating"] for p in players)  # High is good
+                worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)  # High is bad
+                best_hltv = max(p.get("hltvRating", 0) for p in players)  # High is good
 
                 worst_util_players = [p for p in players if p["utilityOnDeathAvg"] == worst_util]
                 best_hltv_players = [p for p in players if p["hltvRating"] == best_hltv]
