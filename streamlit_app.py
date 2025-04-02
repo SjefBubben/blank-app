@@ -153,8 +153,8 @@ def home_page():
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
                             <h3>🔥 Reaction Time Rankings</h3>
-                            <h4>💪 Fastest: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
-                            <h4>🍺 Slowest: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
+                            <h4>💪 Gooner: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
+                            <h4>🍺 Pils-bitch: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -162,8 +162,8 @@ def home_page():
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #2196F3; color: white; border-radius: 10px; text-align: center;">
                             <h3>🎯 Trade Kill Attempts</h3>
-                            <h4>✅ Best: {', '.join(p['name'] for p in best_trade_players)} ({best_trade}%)</h4>
-                            <h4>❌ Worst: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade}%)</h4>
+                            <h4>✅ Rizzler: {', '.join(p['name'] for p in best_trade_players)} ({best_trade}%)</h4>
+                            <h4>❌ Gooner: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade}%)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
