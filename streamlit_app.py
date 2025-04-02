@@ -138,8 +138,8 @@ def home_page():
                 min_rt = min(p["reactionTime"] for p in players)
                 max_rt = max(p["reactionTime"] for p in players)
 
-                best_trade = max(p["tradeKillAttemptsPercentage"] for p in players)
-                worst_trade = min(p["tradeKillAttemptsPercentage"] for p in players)
+                best_trade = max(p["tradeKillAttemptsPercentage"]*100 for p in players)
+                worst_trade = min(p["tradeKillAttemptsPercentage"]*100 for p in players)
 
                 top_players = [p for p in players if p["reactionTime"] == min_rt]
                 low_players = [p for p in players if p["reactionTime"] == max_rt]
