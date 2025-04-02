@@ -150,8 +150,8 @@ def home_page():
                 worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)  # High is bad
                 best_hltv = max(p.get("hltvRating", 0) for p in players)  # High is good
 
-                worst_util_players = [p for p in players if p["utilityOnDeathAvg"] == worst_util]
-                best_hltv_players = [p for p in players if p["hltvRating"] == best_hltv]
+                worst_util_players = [p for p in players if p.get("utilityOnDeathAvg",0) == worst_util]
+                best_hltv_players = [p for p in players if p.get("hltvRating",0) == best_hltv]
 
                 col1, col2 = st.columns(2)
 
