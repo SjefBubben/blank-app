@@ -144,8 +144,8 @@ def home_page():
                 top_players = [p for p in players if p["reactionTime"] == min_rt]
                 low_players = [p for p in players if p["reactionTime"] == max_rt]
 
-                best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] == best_trade]
-                worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] == worst_trade]
+                best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"]*100 == best_trade]
+                worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"]*100 == worst_trade]
 
                 col1, col2 = st.columns(2)
                 
