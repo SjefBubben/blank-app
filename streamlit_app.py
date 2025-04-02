@@ -138,8 +138,11 @@ def home_page():
                 min_rt = min(p["reactionTime"] for p in players)
                 max_rt = max(p["reactionTime"] for p in players)
 
-                best_trade = max(p["tradeKillAttemptsPercentage"] * 100 for p in players)
-                worst_trade = min(p["tradeKillAttemptsPercentage"] * 100 for p in players)
+                best_trade = max(p["tradeKillAttemptsPercentage"]*100 for p in players)
+                worst_trade = min(p["tradeKillAttemptsPercentage"]*100 for p in players)
+
+                top_players = [p for p in players if p["reactionTime"] == min_rt]
+                low_players = [p for p in players if p["reactionTime"] == max_rt]
 
                 best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == best_trade]
                 worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == worst_trade]
@@ -155,9 +158,9 @@ def home_page():
                 with col1:
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
-                            <h3>🔥 Reaction Time Rankings</h3>
-                            <h4>💪 Fastest: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
-                            <h4>🍺 Slowest: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
+                            <h3>🔥 Reaction Time</h3>
+                            <h4>💪 Gooner: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
+                            <h4>🍺 Pils-bitch: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -165,8 +168,8 @@ def home_page():
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #2196F3; color: white; border-radius: 10px; text-align: center;">
                             <h3>🎯 Trade Kill Attempts</h3>
-                            <h4>✅ Best: {', '.join(p['name'] for p in best_trade_players)} ({best_trade:.1f}%)</h4>
-                            <h4>❌ Worst: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade:.1f}%)</h4>
+                            <h4>✅ Rizzler: {', '.join(p['name'] for p in best_trade_players)} ({best_trade:.1f}%)</h4>
+                            <h4>❌ Baiterbot: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade:.1f}%)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -175,8 +178,8 @@ def home_page():
                 with col3:
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #F44336; color: white; border-radius: 10px; text-align: center;">
-                            <h3>💣 Worst Utility on Death</h3>
-                            <h4>🔥 Worst: {', '.join(p['name'] for p in worst_util_players)} ({worst_util:.2f})</h4>
+                            <h3>💣 Utility on Death</h3>
+                            <h4>🔥 McRizzler: {', '.join(p['name'] for p in worst_util_players)} ({worst_util:.2f})</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -184,7 +187,7 @@ def home_page():
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
                             <h3>🏆 Best HLTV Rating</h3>
-                            <h4>⭐ Best: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
+                            <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
