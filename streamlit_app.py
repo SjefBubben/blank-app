@@ -111,18 +111,14 @@ def get_player_stat(player, stat_key):
 
 # Home Page (No Session State)
 def home_page():
-
     days = st.number_input("Days back", min_value=1, max_value=15, value=2)
     with st.spinner("Fetching games from all profiles..."):
-
         new_games = fetch_new_games(days)
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
         st.warning("No games found across all profiles.")
         return
-
-    # Debug: Check the games data
 
     game_options = [f"{g.get('map_name', 'Unknown')} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
     selected_game = st.selectbox("Pick a game", game_options)
@@ -133,7 +129,8 @@ def home_page():
         details = fetch_game_details(game_id)
         if details:
             players = [
-                {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 0)}
+                {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 0),
+                 "tradeKillAttemptsPercentage": p.get("tradeKillAttemptsPercentage", 0)}
                 for p in details.get("playerStats", []) if NAME_MAPPING.get(p["name"], p["name"]) in ALLOWED_PLAYERS
             ]
             if players:
@@ -141,24 +138,32 @@ def home_page():
                 min_rt = min(p["reactionTime"] for p in players)
                 max_rt = max(p["reactionTime"] for p in players)
 
+                best_trade = max(p["tradeKillAttemptsPercentage"] for p in players)
+                worst_trade = min(p["tradeKillAttemptsPercentage"] for p in players)
+
                 top_players = [p for p in players if p["reactionTime"] == min_rt]
                 low_players = [p for p in players if p["reactionTime"] == max_rt]
 
+                best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] == best_trade]
+                worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] == worst_trade]
+
                 col1, col2 = st.columns(2)
+                
                 with col1:
                     st.markdown(f"""
                         <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
-                            <h3>💪 Raskeste gooner</h3>
-                            <h4>{', '.join(p['name'] for p in top_players)}</h4>
-                            <h4>Reaksjonstid: {min_rt}</h4>
+                            <h3>🔥 Reaction Time Rankings</h3>
+                            <h4>💪 Fastest: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
+                            <h4>🍺 Slowest: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
                         </div>
                     """, unsafe_allow_html=True)
+
                 with col2:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #F44336; color: white; border-radius: 10px; text-align: center;">
-                            <h3>🍺 Tregeste pils-bitch</h3>
-                            <h4>{', '.join(p['name'] for p in low_players)}</h4>
-                            <h4>Reaksjonstid: {max_rt}</h4>
+                        <div style="padding: 15px; background-color: #2196F3; color: white; border-radius: 10px; text-align: center;">
+                            <h3>🎯 Trade Kill Attempts</h3>
+                            <h4>✅ Best: {', '.join(p['name'] for p in best_trade_players)} ({best_trade}%)</h4>
+                            <h4>❌ Worst: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade}%)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
@@ -166,6 +171,7 @@ def home_page():
         st.subheader("New Games")
         for g in new_games:
             st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
+    
     st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
