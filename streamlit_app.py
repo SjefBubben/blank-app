@@ -112,10 +112,9 @@ def get_player_stat(player, stat_key):
 # Home Page (No Session State)
 def home_page():
     days = st.number_input("Days back", min_value=1, max_value=15, value=2)
-    if st.button("Fetch Games"):
-        with st.spinner("Fetching games from all profiles..."):
-            new_games = fetch_new_games(days)
-            games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
+    with st.spinner("Fetching games from all profiles..."):
+        new_games = fetch_new_games(days)
+        games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
         st.warning("No games found across all profiles.")
