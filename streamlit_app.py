@@ -396,7 +396,13 @@ def img_to_base64(img_path):
 img_base64 = img_to_base64("bubblogo2.png")
 
 html_code = f"""
-<div style="display: flex; align-items: center; justify-content: center;">
+<div style="
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 150px;  /* optional: gives some vertical space */
+    text-align: center;
+">
     <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
     <h1 style="margin: 0;">Bubberne Gaming</h1>
 </div>
