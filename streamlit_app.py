@@ -22,7 +22,25 @@ NAME_MAPPING = {
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-# Fetch Functions
+# Caching helper
+@st.cache_data(ttl=300)
+def get_cached_games(days=2):
+    return fetch_games_within_last_48_hours(days)
+
+@st.cache_data(ttl=300)
+def get_cached_konsum(game_id):
+    return fetch_konsum_data_for_game(game_id) or {}
+
+# Session cache: populate once if empty
+if 'initialized' not in st.session_state:
+    st.session_state['initialized'] = True
+    st.session_state['cached_games'] = get_cached_games()
+    st.session_state['cached_konsum'] = {}
+    for game in st.session_state['cached_games']:
+        st.session_state['cached_konsum'][game['game_id']] = get_cached_konsum(game['game_id'])
+
+# Data Fetching Functions
+
 def fetch_profile(steam_id):
     try:
         response = requests.get(PROFILE_API + steam_id, timeout=10)
@@ -79,35 +97,15 @@ def fetch_new_games(days=2):
             game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")
         )
 
-    game_details = {gid: fetch_game_details(gid) for gid in games_to_fetch if fetch_game_details(gid)}
-    for game in new_games:
-        game["details"] = game_details.get(game["game_id"], {})
-
     return new_games
 
-@st.cache_data(ttl=300)
-def get_cached_games(days=2):
-    return fetch_games_within_last_48_hours(days)
-
-@st.cache_data(ttl=300)
-def get_cached_konsum(game_id):
-    return fetch_konsum_data_for_game(game_id) or {}
-
-def initialize_session_data(days=2):
-    with st.spinner("Refreshing data from all profiles..."):
-        new_games = fetch_new_games(days)
-    return new_games
-
-# Stat Mapping and Helper
-stat_display_mapping = {
-    "K/D Ratio": "kdRatio", "ADR (Average Damage per Round)": "dpr", "HLTV Rating": "hltvRating",
-    "Enemies Flashed": "flashbangThrown", "Friends Flashed": "flashbangHitFoe", "Avg. Unused Utility": "utilityOnDeathAvg",
-    "Trade Kill Opportunities": "tradeKillOpportunities", "Trade Kill Attempts": "tradeKillAttempts",
-    "Trade Kill Success": "tradeKillsSucceeded", "2k Kills": "multi2k", "3k Kills": "multi3k",
-    "4k Kills": "multi4k", "5k Kills": "multi5k", "Flashbang Leading to Kill": "flashbangLeadingToKill",
-    "Reaction Time": "reactionTime", "HE Grenades Thrown": "heThrown", "Molotovs Thrown": "molotovThrown",
-    "Smokes Thrown": "smokeThrown"
-}
+# Manual refresh button functionality
+def refresh_all():
+    new_games = fetch_new_games(days=2)
+    st.session_state['cached_games'] = get_cached_games()
+    for game in st.session_state['cached_games']:
+        st.session_state['cached_konsum'][game['game_id']] = get_cached_konsum(game['game_id'])
+    st.success("Data refreshed!")
 
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
@@ -352,7 +350,7 @@ st.image("bubblogo2.png", width=80)
 st.markdown("<h1 style='text-align: center;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
 
 if st.button("🔄 Refresh Data"):
-    st.session_state.new_games = initialize_session_data(days=2)
+    refresh_all()
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
