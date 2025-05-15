@@ -125,12 +125,10 @@ def refresh_all():
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
 
-# Home Page (No Session State)
+# Home Page 
 def home_page():
     days = st.number_input("Days back", min_value=1, max_value=15, value=2)
-    with st.spinner("Fetching games from all profiles..."):
-        
-        games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
+    games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
         st.warning("No games found across all profiles.")
@@ -165,17 +163,19 @@ def home_page():
                 best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == best_trade]
                 worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == worst_trade]
 
-                worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)  # High is bad
-                best_hltv = max(p.get("hltvRating", 0) for p in players)  # High is good
+                worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)
+                best_hltv = max(p.get("hltvRating", 0) for p in players)
 
                 worst_util_players = [p for p in players if p.get("utilityOnDeathAvg",0) == worst_util]
                 best_hltv_players = [p for p in players if p.get("hltvRating",0) == best_hltv]
 
-                col1, col2 = st.columns(2)
+                # Add spacing between columns using st.columns with gap
+                col1, col2 = st.columns([1, 1], gap="small")
+                col3, col4 = st.columns([1, 1], gap="small")
 
                 with col1:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🔥 Reaction Time</h3>
                             <h4>💪 Gooner: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
                             <h4>🍺 Pils-bitch: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
@@ -184,18 +184,16 @@ def home_page():
 
                 with col2:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #2196F3; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #1976D2; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🎯 Trade Kill Attempts</h3>
                             <h4>✅ Rizzler: {', '.join(p['name'] for p in best_trade_players)} ({best_trade:.1f}%)</h4>
                             <h4>❌ Baiterbot: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade:.1f}%)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
-                col3, col4 = st.columns(2)
-
                 with col3:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #F44336; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #D32F2F; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>💣 Utility on Death</h3>
                             <h4>🔥 McRizzler: {', '.join(p['name'] for p in worst_util_players)} ({worst_util:.2f})</h4>
                         </div>
@@ -203,14 +201,12 @@ def home_page():
 
                 with col4:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🏆 Best HLTV Rating</h3>
                             <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
-
-    
     st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
@@ -280,6 +276,8 @@ def stats_page():
     with st.spinner("Loading stats..."):
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
         stats_data = []
+        # Track stats for averaging
+        player_stats = {name: {'kd': [], 'rt': [], 'trade': []} for name in ALLOWED_PLAYERS}
 
         for game in games:
             details = fetch_game_details(game["game_id"])
@@ -291,6 +289,37 @@ def stats_page():
                 if name in ALLOWED_PLAYERS:
                     value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
                     stats_data.append({"Game": game_label, "Player": name, "Value": value})
+                    # Collect stats for averaging
+                    player_stats[name]['kd'].append(p.get("kdRatio", 0))
+                    player_stats[name]['rt'].append(p.get("reactionTime", 0))
+                    player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
+
+        # Calculate average stats and find best players
+        avg_stats = {}
+        for name in player_stats:
+            kd_list = [x for x in player_stats[name]['kd'] if x > 0]
+            rt_list = [x for x in player_stats[name]['rt'] if x > 0]
+            trade_list = [x for x in player_stats[name]['trade'] if x > 0]
+            avg_stats[name] = {
+                'kd': sum(kd_list) / len(kd_list) if kd_list else 0,
+                'rt': sum(rt_list) / len(rt_list) if rt_list else float('inf'),
+                'trade': sum(trade_list) / len(trade_list) if trade_list else 0
+            }
+
+        # Find best averages
+        best_kd = max((name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0)
+        best_rt = min((name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf'))
+        best_trade = max((name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0)
+
+        # Display best average stats
+        st.markdown(f"""
+            <div style="padding: 10px; background-color: #f0f0f0; border-radius: 5px; margin-bottom: 10px;">
+                <h4>Best Average Stats Across Games</h4>
+                <p>Best avg KD: {best_kd[0]} ({best_kd[1]:.2f})</p>
+                <p>Best avg Reaction Time: {best_rt[0]} ({best_rt[1]:.2f}s)</p>
+                <p>Best avg Trade Attempts: {best_trade[0]} ({best_trade[1]:.1f}%)</p>
+            </div>
+        """, unsafe_allow_html=True)
 
         if stats_data:
             df = pd.DataFrame(stats_data)
