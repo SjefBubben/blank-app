@@ -312,7 +312,7 @@ def Download_Game_Stats(days):
                         }
 
                         # Add all game stats
-                        for display_name, stat_key in stat_display_mapping.items():
+                        for display_name, stat_key in STAT_MAP.items():
                             player_data[display_name] = get_player_stat(player, stat_key)
 
                         # Add Beer & Water
