@@ -60,7 +60,7 @@ def fetch_new_games(days=2):
                         finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                         new_games.append({
                             "game_id": game_id,
-                            "map_name": game.get("mapName", "Unknown"),  # Mapping API's mapName to map_name
+                            "map_name": game.get("mapName", "Unknown"),
                             "match_result": game.get("matchResult", "Unknown"),
                             "scores": game.get("scores", [0, 0]),
                             "game_finished_at": finished_at
@@ -85,8 +85,6 @@ def fetch_new_games(days=2):
 
     return new_games
 
-# Rest of the functions (get_cached_games, get_cached_konsum, etc.) remain unchanged unless further customization is needed
-
 @st.cache_data(ttl=300)
 def get_cached_games(days=2):
     return fetch_games_within_last_48_hours(days)
@@ -94,6 +92,11 @@ def get_cached_games(days=2):
 @st.cache_data(ttl=300)
 def get_cached_konsum(game_id):
     return fetch_konsum_data_for_game(game_id) or {}
+
+def initialize_session_data(days=2):
+    with st.spinner("Refreshing data from all profiles..."):
+        new_games = fetch_new_games(days)
+    return new_games
 
 # Stat Mapping and Helper
 stat_display_mapping = {
@@ -348,28 +351,17 @@ def motivation_page():
 st.image("bubblogo2.png", width=80)
 st.markdown("<h1 style='text-align: center;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
 
-nav = st.columns(4)
-with nav[0]:
-    if st.button("🏠 Home", use_container_width=True):
-        st.session_state.page = "home"
-with nav[1]:
-    if st.button("📝 Input", use_container_width=True):
-        st.session_state.page = "input"
-with nav[2]:
-    if st.button("📊 Stats", use_container_width=True):
-        st.session_state.page = "stats"
-with nav[3]:
-    if st.button("🚽 Motivation", use_container_width=True):
-        st.session_state.page = "motivation"
+if st.button("🔄 Refresh Data"):
+    st.session_state.new_games = initialize_session_data(days=2)
 
-if "page" not in st.session_state:
-    st.session_state.page = "home"
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
-if st.session_state.page == "home":
+if page == "🏠 Home":
     home_page()
-elif st.session_state.page == "input":
+elif page == "📝 Input":
     input_data_page()
-elif st.session_state.page == "stats":
+elif page == "📊 Stats":
     stats_page()
-elif st.session_state.page == "motivation":
+elif page == "🚽 Motivation":
     motivation_page()
