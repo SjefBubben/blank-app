@@ -403,8 +403,8 @@ html_code = f"""
     height: 150px;  /* optional: gives some vertical space */
     text-align: center;
 ">
-    <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
-    <h2 style="margin: 0;">Bubberne Gaming</h2>
+    <img src="data:image/png;base64,{img_base64}" width="60" style="margin-right: 10px;">
+    <h1 style="margin: 0;">Bubberne Gaming</h1>
 </div>
 """
 
