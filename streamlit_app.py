@@ -404,7 +404,7 @@ html_code = f"""
     text-align: center;
 ">
     <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
-    <h1 style="margin: 0;">Bubberne Gaming</h1>
+    <h2 style="margin: 0;">Bubberne Gaming</h2>
 </div>
 """
 
