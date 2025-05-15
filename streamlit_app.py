@@ -387,8 +387,12 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 # Main UI
-st.image("bubblogo2.png", width=80)
-st.markdown("<h1 style='text-align: center;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
+st.markdown("""
+<div style="display: flex; align-items: center; justify-content: center;">
+    <img src="bubblogo2.png" width="80" style="margin-right: 10px;">
+    <h1 style="margin: 0;">Bubberne Gaming</h1>
+</div>
+""", unsafe_allow_html=True)
 
 initialize_session_state()
 
