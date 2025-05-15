@@ -126,8 +126,7 @@ def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
 
 # Home Page 
-def home_page():
-    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
+def home_page(days):
     games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
@@ -210,9 +209,8 @@ def home_page():
     st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
-def input_data_page():
+def input_data_page(days):
     st.header("Input BubbeData")
-    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
@@ -266,9 +264,8 @@ STAT_MAP = {
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
-def stats_page():
+def stats_page(days):
     st.header("Stats")
-    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
     stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
@@ -392,8 +389,14 @@ st.markdown("<h1 style='text-align: center;'>Bubberne Gaming</h1>", unsafe_allow
 
 initialize_session_state()
 
-if st.button("🔄 Refresh Data"):
-    refresh_all()
+col1, col2 = st.columns([1, 2])  # You can adjust the width ratio if you want
+
+with col1:
+    if st.button("🔄 Refresh Data"):
+        refresh_all()
+
+with col2:
+    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
