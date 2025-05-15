@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import base64
 import pandas as pd
 import plotly.express as px
 from operator import itemgetter
@@ -387,12 +388,21 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 # Main UI
-st.markdown("""
+def img_to_base64(img_path):
+    with open(img_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+img_base64 = img_to_base64("bubblogo2.png")
+
+html_code = f"""
 <div style="display: flex; align-items: center; justify-content: center;">
-    <img src="bubblogo2.png" width="80" style="margin-right: 10px;">
+    <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
     <h1 style="margin: 0;">Bubberne Gaming</h1>
 </div>
-""", unsafe_allow_html=True)
+"""
+
+st.markdown(html_code, unsafe_allow_html=True)
 
 initialize_session_state()
 
