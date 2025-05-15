@@ -1,112 +1,127 @@
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import streamlit as st
-import json
 
-# Google Sheets ID (replace with your actual Sheet ID)
+# Google Sheets ID
 SHEET_ID = "19vqg2lx3hMCEj7MtxkISzsYz0gUaCLgSV11q-YYtXQY"
 
 # Google Sheets authentication setup
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-
-
-# Load service account credentials from Streamlit secrets (it is already a dictionary)
-service_account_info = st.secrets["service_account"]
-
-# Manually create a dictionary based on the service account info
-service_account_info_dict = dict(service_account_info)
-
-# Fix private key string formatting if necessary
-private_key = service_account_info_dict.get("private_key")
-
-# Ensure that the private key is formatted correctly, with newline characters properly represented
-if private_key:
-    private_key = private_key.replace("\\n", "\n")  # Replaces escaped newlines with actual newlines
-    service_account_info_dict["private_key"] = private_key  # Update the dictionary with the fixed key
-
-# Create credentials using the updated dictionary
-creds = Credentials.from_service_account_info(service_account_info_dict, scopes=SCOPES)
+service_account_info = dict(st.secrets["service_account"])
+service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
 
 def connect_to_gsheet():
-    """Connects to Google Sheets using Streamlit secrets"""
-    client = gspread.authorize(creds)
-    return client
+    """Connects to Google Sheets using Streamlit secrets."""
+    return gspread.authorize(creds)
 
-def save_game_data(game_id, map_name, match_result, score_team1, score_team2, game_finished_at):
-    client = connect_to_gsheet()
-    sheet = client.open_by_key(SHEET_ID).worksheet("games")
-
-    score_team1 = int(score_team1)
-    score_team2 = int(score_team2)
-
-    existing_games = sheet.get_all_values()
-    existing_game_ids = {row[0] for row in existing_games[1:]}
-
-    if game_id not in existing_game_ids:
-        sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
-
-def save_konsum_data(game_id, player_name, beer, water_glasses):
-    client = connect_to_gsheet()
-    sheet = client.open_by_key(SHEET_ID).worksheet("konsum")
-
-    # Fetch existing konsum records
-    existing_konsum_data = sheet.get_all_values()
-
-    # Find the row index where the game_id and player_name exist
-    for i, row in enumerate(existing_konsum_data):
-        if row[0] == game_id and row[1] == player_name:
-            # Update the beer and water columns
-            sheet.update_cell(i + 1, 3, beer)  # Update the "beer" column
-            sheet.update_cell(i + 1, 4, water_glasses)  # Update the "water" column (glasses)
-            return
-
-    # If not found, add a new row
-    sheet.append_row([game_id, player_name, beer, water_glasses])
-
-def fetch_games_within_last_48_hours(days=2):
+def fetch_all_sheets_data():
+    """Fetch all data from 'games' and 'konsum' sheets once."""
     try:
         client = connect_to_gsheet()
-        sheet = client.open_by_key(SHEET_ID).worksheet("games")
-        data = sheet.get_all_values()
-
-        if not data or len(data) <= 1:
-            print("❌ No data found in Google Sheets")
-            return []
-
-        df = pd.DataFrame(data[1:], columns=data[0])  # Headers should include "map_name"
-        df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
-        cutoff_time = datetime.utcnow() - timedelta(days=days)
-        df = df[df["game_finished_at"] >= cutoff_time]
-
-        df["score_team1"] = df["score_team1"].astype(int)
-        df["score_team2"] = df["score_team2"].astype(int)
-
-        games_list = df.to_dict(orient="records")
-        print(f"✅ Retrieved {len(games_list)} games from Google Sheets: {games_list}")
-        return games_list
+        spreadsheet = client.open_by_key(SHEET_ID)
+        
+        # Fetch games data
+        games_sheet = spreadsheet.worksheet("games")
+        games_data = games_sheet.get_all_values()
+        games_df = pd.DataFrame(games_data[1:], columns=games_data[0]) if games_data else pd.DataFrame()
+        
+        # Fetch konsum data
+        konsum_sheet = spreadsheet.worksheet("konsum")
+        konsum_data = konsum_sheet.get_all_values()
+        konsum_df = pd.DataFrame(konsum_data[1:], columns=konsum_data[0]) if konsum_data else pd.DataFrame()
+        
+        print(f"✅ Fetched {len(games_df)} games and {len(konsum_df)} konsum records from Sheets")
+        return games_df, konsum_df
     except Exception as e:
-        print(f"⚠️ Error fetching games: {e}")
-        return []
-def fetch_konsum_data_for_game(game_id):
-    """Fetch beer and water (glasses) data for a specific game from the 'konsum' sheet."""
+        print(f"⚠️ Error fetching Sheets data: {e}")
+        return pd.DataFrame(), pd.DataFrame()
+
+def save_game_data(game_id, map_name, match_result, score_team1, score_team2, game_finished_at):
+    """Save game data to Sheets and update cached data."""
+    client = connect_to_gsheet()
+    sheet = client.open_by_key(SHEET_ID).worksheet("games")
+    
+    score_team1 = int(score_team1)
+    score_team2 = int(score_team2)
+    
+    existing_games = st.session_state.get('games_df', pd.DataFrame())
+    if not existing_games.empty and game_id not in existing_games['game_id'].values:
+        sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
+        
+        # Update cached games data
+        new_row = pd.DataFrame([{
+            'game_id': game_id, 'map_name': map_name, 'match_result': match_result,
+            'score_team1': score_team1, 'score_team2': score_team2, 'game_finished_at': game_finished_at
+        }])
+        st.session_state['games_df'] = pd.concat([existing_games, new_row], ignore_index=True)
+
+def save_konsum_data(game_id, player_name, beer, water_glasses):
+    """Save konsum data to Sheets and update cached data."""
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("konsum")
-    data = sheet.get_all_values()
+    
+    existing_konsum = st.session_state.get('konsum_df', pd.DataFrame())
+    matching_rows = existing_konsum[(existing_konsum['game_id'] == game_id) & (existing_konsum['player_name'] == player_name)]
+    
+    if not matching_rows.empty:
+        row_index = matching_rows.index[0] + 2  # +2 for 1-based indexing and header row
+        sheet.update_cell(row_index, 3, beer)
+        sheet.update_cell(row_index, 4, water_glasses)
+        
+        # Update cached konsum data
+        st.session_state['konsum_df'].loc[matching_rows.index, ['beer', 'water']] = [beer, water_glasses]
+    else:
+        sheet.append_row([game_id, player_name, beer, water_glasses])
+        
+        # Update cached konsum data
+        new_row = pd.DataFrame([{
+            'game_id': game_id, 'player_name': player_name, 'beer': beer, 'water': water_glasses
+        }])
+        st.session_state['konsum_df'] = pd.concat([existing_konsum, new_row], ignore_index=True)
 
-    if not data or len(data) <= 1:
-        print(f"⚠️ No konsum data found for game {game_id}!")
+def fetch_games_within_last_48_hours(days=2):
+    """Fetch games from cached data within the specified timeframe."""
+    try:
+        games_df = st.session_state.get('games_df', pd.DataFrame())
+        if games_df.empty:
+            print("❌ No games data in cache")
+            return []
+        
+        games_df['game_finished_at'] = pd.to_datetime(games_df['game_finished_at'], format="%Y-%m-%d %H:%M:%S", errors='coerce')
+        cutoff_time = datetime.utcnow() - timedelta(days=days)
+        filtered_games = games_df[games_df['game_finished_at'] >= cutoff_time].copy()
+        
+        filtered_games['score_team1'] = filtered_games['score_team1'].astype(int)
+        filtered_games['score_team2'] = filtered_games['score_team2'].astype(int)
+        
+        games_list = filtered_games.to_dict(orient='records')
+        print(f"✅ Retrieved {len(games_list)} games from cache: {games_list}")
+        return games_list
+    except Exception as e:
+        print(f"⚠️ Error processing cached games: {e}")
+        return []
+
+def fetch_konsum_data_for_game(game_id):
+    """Fetch konsum data for a specific game from cached data."""
+    try:
+        konsum_df = st.session_state.get('konsum_df', pd.DataFrame())
+        if konsum_df.empty:
+            print(f"⚠️ No konsum data in cache for game {game_id}")
+            return {}
+        
+        game_konsum = konsum_df[konsum_df['game_id'] == game_id]
+        konsum_data = {}
+        for _, row in game_konsum.iterrows():
+            player_name = row['player_name']
+            beer = int(row['beer']) if str(row['beer']).isdigit() else 0
+            water = int(row['water']) if str(row['water']).isdigit() else 0
+            konsum_data[player_name] = {'beer': beer, 'water': water}
+        
+        print(f"✅ Konsum data for game {game_id} from cache: {konsum_data}")
+        return konsum_data
+    except Exception as e:
+        print(f"⚠️ Error processing cached konsum data: {e}")
         return {}
-
-    # Convert sheet data to dictionary
-    konsum_data = {}
-    for row in data[1:]:  # Skip header row
-        if row[0] == game_id:
-            player_name = row[1]
-            beer_count = int(row[2]) if row[2].isdigit() else 0
-            water_glasses = int(row[3]) if row[3].isdigit() else 0
-            konsum_data[player_name] = {'beer': beer_count, 'water': water_glasses}
-
-    print(f"✅ Konsum data for game {game_id}: {konsum_data}")
-    return konsum_data

@@ -5,8 +5,7 @@ import plotly.express as px
 from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
-from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
-
+from DataInout import fetch_all_sheets_data, fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
 # API Endpoints
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
@@ -22,22 +21,40 @@ NAME_MAPPING = {
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-# Caching helper
-@st.cache_data(ttl=300)
+# Initialize session state with all Sheets data
+def initialize_session_state():
+    if 'initialized' not in st.session_state:
+        st.session_state['initialized'] = True
+        # Fetch all Sheets data once
+        games_df, konsum_df = fetch_all_sheets_data()
+        st.session_state['games_df'] = games_df
+        st.session_state['konsum_df'] = konsum_df
+        st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+        st.session_state['cached_konsum'] = {}
+        for game in st.session_state['cached_games']:
+            st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
+
+# Manual refresh button functionality
+def refresh_all():
+    # Clear cached data and refetch from Sheets
+    games_df, konsum_df = fetch_all_sheets_data()
+    st.session_state['games_df'] = games_df
+    st.session_state['konsum_df'] = konsum_df
+    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+    st.session_state['cached_konsum'] = {}
+    for game in st.session_state['cached_games']:
+        st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
+    # Fetch new games from Leetify API
+    new_games = fetch_new_games(days=2)
+    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+    st.success("Data refreshed!")
+
+# Remove caching decorators since we use session state
 def get_cached_games(days=2):
     return fetch_games_within_last_48_hours(days)
 
-@st.cache_data(ttl=300)
 def get_cached_konsum(game_id):
     return fetch_konsum_data_for_game(game_id) or {}
-
-# Session cache: populate once if empty
-if 'initialized' not in st.session_state:
-    st.session_state['initialized'] = True
-    st.session_state['cached_games'] = get_cached_games()
-    st.session_state['cached_konsum'] = {}
-    for game in st.session_state['cached_games']:
-        st.session_state['cached_konsum'][game['game_id']] = get_cached_konsum(game['game_id'])
 
 # Data Fetching Functions
 
@@ -58,20 +75,18 @@ def fetch_game_details(game_id):
         return None
 
 def fetch_new_games(days=2):
-    saved_games = fetch_games_within_last_48_hours(days)
-    saved_game_ids = {g["game_id"] for g in saved_games}
     new_games = []
-    games_to_fetch = set()
     now = datetime.utcnow()
-
+    
     for steam_id in STEAM_IDS:
         profile_data = fetch_profile(steam_id)
         if not profile_data:
             continue
-
+        
         for game in profile_data.get("games", []):
             game_id = game.get("gameId")
-            if game_id not in saved_game_ids and game_id not in {g["game_id"] for g in new_games}:
+            existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
+            if game_id not in existing_game_ids and game_id not in {g["game_id"] for g in new_games}:
                 try:
                     finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
                     if finished_at > now - timedelta(days=days):
@@ -83,10 +98,10 @@ def fetch_new_games(days=2):
                             "scores": game.get("scores", [0, 0]),
                             "game_finished_at": finished_at
                         })
-                        games_to_fetch.add(game_id)
                 except (ValueError, KeyError):
                     continue
-
+    
+    # Save new games to Sheets and update cache
     for game in new_games:
         save_game_data(
             game["game_id"],
@@ -96,7 +111,7 @@ def fetch_new_games(days=2):
             game["scores"][1],
             game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")
         )
-
+    
     return new_games
 
 # Manual refresh button functionality
@@ -348,6 +363,8 @@ def motivation_page():
 # Main UI
 st.image("bubblogo2.png", width=80)
 st.markdown("<h1 style='text-align: center;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
+
+initialize_session_state()
 
 if st.button("🔄 Refresh Data"):
     refresh_all()
