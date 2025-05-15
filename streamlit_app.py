@@ -313,7 +313,7 @@ def stats_page():
 
         # Display best average stats
         st.markdown(f"""
-            <div style="padding: 10px; background-color: #f0f0f0; border-radius: 5px; margin-bottom: 10px;">
+            <div style="padding: 10px; background-color: #000000; border-radius: 5px; margin-bottom: 10px;">
                 <h4>Best Average Stats Across Games</h4>
                 <p>Best avg KD: {best_kd[0]} ({best_kd[1]:.2f})</p>
                 <p>Best avg Reaction Time: {best_rt[0]} ({best_rt[1]:.2f}s)</p>
