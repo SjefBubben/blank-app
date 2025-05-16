@@ -37,7 +37,7 @@ def initialize_session_state():
             st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
 
 # Manual refresh button functionality
-def refresh_all():
+def refresh_all(days):
     # Clear cached data and refetch from Sheets
     games_df, konsum_df = fetch_all_sheets_data()
     st.session_state['games_df'] = games_df
