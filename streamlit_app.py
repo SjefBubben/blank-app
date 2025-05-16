@@ -114,14 +114,14 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
         existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
         if game_id not in existing_game_ids and game_id not in {g["game_id"] for g in new_games}:
             try:
-                finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+                finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
                 if finished_at > now - timedelta(days=days):
                     finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                     new_games.append({
                         "game_id": game_id,
                         "map_name": game.get("mapName", "Unknown"),
                         "match_result": game.get("matchResult", "Unknown"),
-                        "scores": game.get("scores", [0, 0]),
+                        "scores": game.get("score", [0, 0]),
                         "game_finished_at": finished_at_str
                     })
             except (ValueError, KeyError):
@@ -417,7 +417,6 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 # Main UI
-refresh_all()
 def img_to_base64(img_path):
     with open(img_path, "rb") as f:
         data = f.read()
