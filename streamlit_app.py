@@ -143,7 +143,7 @@ def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
 
 # Home Page 
-def home_page(days):
+def home_page(days=2):
     
     games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
@@ -227,7 +227,7 @@ def home_page(days):
     st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
-def input_data_page(days):
+def input_data_page(days=2):
     st.header("Input BubbeData")
     
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
@@ -283,7 +283,7 @@ STAT_MAP = {
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
-def stats_page(days):
+def stats_page(days=2):
     st.header("Stats")
     
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
