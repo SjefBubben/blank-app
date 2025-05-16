@@ -125,7 +125,9 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
            
         try:
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
-            st.write(game_id "-" now.str "-" finished_at)
+            st.write(game_id)
+            st.write(now.strftime)
+            st.write(finished_at)
             if finished_at > now - timedelta(days=days):
                 finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                 score = game.get("score", [0, 0])
