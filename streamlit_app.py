@@ -154,7 +154,7 @@ def get_player_stat(player, stat_key):
 
 # Home Page 
 def home_page(days=2):
-    
+    days = st.input.number_input("Days back", min_value=1, max_value=15, value=2)
     games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
