@@ -433,7 +433,7 @@ html_code = f"""
 """
 
 st.markdown(html_code, unsafe_allow_html=True)
-
+fetch_new_games(days=2)
 initialize_session_state()
 
 if st.button("🔄 Refresh Data"):
