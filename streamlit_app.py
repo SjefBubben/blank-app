@@ -107,9 +107,7 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 
     profile_data = fetch_profile(token, start_date, now)
     
-    # 👀 Show raw API data
-    st.subheader("Raw Leetify API Response")
-    st.json(profile_data)
+
 
     if not profile_data or "games" not in profile_data:
         st.warning("No games found or invalid response")
