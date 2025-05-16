@@ -87,6 +87,7 @@ def fetch_profile(token, start_date, end_date, count=30):
     try:
         response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
+        print("✅ API Response JSON:", response.json())
         return response.json()
     except requests.RequestException as e:
         print(f"Failed fetching profile: {e}")
