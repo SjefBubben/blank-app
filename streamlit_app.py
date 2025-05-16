@@ -84,8 +84,7 @@ def fetch_profile(token, start_date, end_date, count=30):
         response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
         data = response.json()
-        print("Leetify API response:")
-        print(json.dumps(data, indent=2))  # Pretty print full response
+        
         return data
     except requests.RequestException as e:
         print(f"Failed fetching profile: {e}")
