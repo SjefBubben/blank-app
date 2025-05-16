@@ -466,7 +466,7 @@ if st.button("🔄 Refresh Data"):
 
 
 st.sidebar.title("Navigation")
-days = st.number_input("Days back", min_value=1, max_value=15, value=2)
+days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
 if page == "🏠 Home":
