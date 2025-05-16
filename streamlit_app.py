@@ -80,11 +80,14 @@ def fetch_profile(token, start_date, end_date, count=30):
     }
 
     try:
-        response = requests.get(url, headers=headers, params={"filters": str(filters)})
+        response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        print("Leetify API response:")
+        print(json.dumps(data, indent=2))  # Pretty print full response
+        return data
     except requests.RequestException as e:
-        print(f"Failed fetching profile {e}")
+        print(f"Failed fetching profile: {e}")
         return None
 
 def fetch_game_details(game_id):
@@ -413,6 +416,7 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 # Main UI
+refresh_all()
 def img_to_base64(img_path):
     with open(img_path, "rb") as f:
         data = f.read()
