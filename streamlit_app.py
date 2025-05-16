@@ -103,30 +103,43 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     new_games = []
     now = datetime.utcnow()
     start_date = now - timedelta(days=days)
-    
-    
+
     profile_data = fetch_profile(token, start_date, now)
     if not profile_data or "games" not in profile_data:
+        print("No 'games' key in profile_data")
         return []
-        
+
+    existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
+
     for game in profile_data.get("games", []):
         game_id = game.get("id")
-        existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
-        if game_id not in existing_game_ids and game_id not in {g["game_id"] for g in new_games}:
-            try:
-                finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
-                if finished_at > now - timedelta(days=days):
-                    finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
-                    new_games.append({
-                        "game_id": game_id,
-                        "map_name": game.get("mapName", "Unknown"),
-                        "match_result": game.get("matchResult", "Unknown"),
-                        "scores": game.get("score", [0, 0]),
-                        "game_finished_at": finished_at_str
-                    })
-            except (ValueError, KeyError):
-                continue
-    
+        if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
+            continue
+
+        try:
+            # Corrected field name
+            finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            if finished_at > now - timedelta(days=days):
+                finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
+
+                # Corrected field name: 'score' instead of 'scores'
+                score = game.get("score", [0, 0])
+
+                # Try to pull match result from `playerStats` if available
+                match_result = game.get("playerStats", {}).get("matchResult", "Unknown")
+
+                new_game = {
+                    "game_id": game_id,
+                    "map_name": game.get("mapName", "Unknown"),
+                    "match_result": match_result,
+                    "scores": score,
+                    "game_finished_at": finished_at_str
+                }
+                new_games.append(new_game)
+        except (ValueError, KeyError) as e:
+            print(f"Skipping game {game_id} due to error: {e}")
+            continue
+
     # Save new games to Sheets and update cache
     for game in new_games:
         save_game_data(
@@ -135,9 +148,9 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
             game["match_result"],
             game["scores"][0],
             game["scores"][1],
-            game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")
+            game["game_finished_at"]
         )
-    
+
     return new_games
 
 # Manual refresh button functionality
