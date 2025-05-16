@@ -48,6 +48,7 @@ def refresh_all():
         st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
     # Fetch new games from Leetify API
     new_games = fetch_new_games(days=2)
+    print(len(new_games))
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
     st.success("Data refreshed!")
 
@@ -153,13 +154,6 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
 
     return new_games
 
-# Manual refresh button functionality
-def refresh_all():
-    new_games = fetch_new_games(days=2)
-    st.session_state['cached_games'] = get_cached_games()
-    for game in st.session_state['cached_games']:
-        st.session_state['cached_konsum'][game['game_id']] = get_cached_konsum(game['game_id'])
-    st.success("Data refreshed!")
 
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
