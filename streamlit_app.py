@@ -125,9 +125,6 @@ def fetch_new_games(days, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi
            
         try:
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
-            st.write(game_id)
-            st.write(finished_at)
-            st.write(days)
             if finished_at > now - timedelta(days=days):
                 finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                 score = game.get("score", [0, 0])
@@ -142,18 +139,10 @@ def fetch_new_games(days, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi
                     "game_finished_at": finished_at_str
                 }
 
-                # 👀 Show each new game candidate as it's added
-                st.subheader(f"New Game Added: {game_id}")
-                st.json(new_game)
-
                 new_games.append(new_game)
         except (ValueError, KeyError) as e:
             st.error(f"Skipping game {game_id} due to error: {e}")
             continue
-
-    # 👀 Summary of what will be saved
-    st.subheader("All New Games to Save")
-    st.json(new_games)
 
     # Save new games to Sheets
     for game in new_games:
