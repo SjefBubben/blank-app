@@ -110,13 +110,14 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
         return []
 
     existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
-
+    print(existing_game_ids)
     for game in profile_data.get("games", []):
         game_id = game.get("id")
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
             continue
 
         try:
+            print(new_games)
             # Corrected field name
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
             if finished_at > now - timedelta(days=days):
