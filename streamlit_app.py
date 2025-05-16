@@ -102,7 +102,8 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     
     
     profile_data = fetch_profile(token, start_date, now)
-
+    if not profile_data or "games" not in profile_data:
+        return []
         
     for game in profile_data.get("games", []):
         game_id = game.get("id")
@@ -149,11 +150,12 @@ def get_player_stat(player, stat_key):
 # Home Page 
 def home_page():
     days = st.number_input("Days back", min_value=1, max_value=15, value=2)
-    games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
-
+    games = get_cached_games(days)
     if not games:
         st.warning("No games found across all profiles.")
         return
+
+    games = sorted(games, key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     game_options = [f"{g.get('map_name', 'Unknown')} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
     selected_game = st.selectbox("Pick a game", game_options)
