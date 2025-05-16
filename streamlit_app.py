@@ -1,7 +1,6 @@
 import streamlit as st
 import requests
 import base64
-import json
 import pandas as pd
 import plotly.express as px
 from operator import itemgetter
@@ -23,10 +22,6 @@ NAME_MAPPING = {
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-if 'games_df' not in st.session_state or 'konsum_df' not in st.session_state:
-    games_df, konsum_df = fetch_all_sheets_data()
-    st.session_state['games_df'] = games_df
-    st.session_state['konsum_df'] = konsum_df
 # Initialize session state with all Sheets data
 def initialize_session_state():
     if 'initialized' not in st.session_state:
@@ -41,22 +36,18 @@ def initialize_session_state():
             st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
 
 # Manual refresh button functionality
-def refresh_all(days=2):
-    # Step 1: Fetch new games from Leetify
-    new_games = fetch_new_games(days=days)
-
-    # Step 2: Update Sheets (handled in `fetch_new_games`) and re-fetch all data
+def refresh_all(days):
+    # Clear cached data and refetch from Sheets
     games_df, konsum_df = fetch_all_sheets_data()
     st.session_state['games_df'] = games_df
     st.session_state['konsum_df'] = konsum_df
-
-    # Step 3: Update session cache
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
-    st.session_state['cached_konsum'] = {
-        game['game_id']: fetch_konsum_data_for_game(game['game_id'])
-        for game in st.session_state['cached_games']
-    }
-
+    st.session_state['cached_konsum'] = {}
+    for game in st.session_state['cached_games']:
+        st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
+    # Fetch new games from Leetify API
+    new_games = fetch_new_games(days=2)
+    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
     st.success("Data refreshed!")
 
 # Remove caching decorators since we use session state
@@ -89,13 +80,11 @@ def fetch_profile(token, start_date, end_date, count=30):
     }
 
     try:
-        response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
+        response = requests.get(url, headers=headers, params={"filters": str(filters)})
         response.raise_for_status()
-        print("✅ API Response JSON:", response.json())
         return response.json()
     except requests.RequestException as e:
-        print(f"Failed fetching profile: {e}")
-        print(f"Response content: {response.text}")
+        print(f"Failed fetching profile for {steam_id}: {e}")
         return None
 
 def fetch_game_details(game_id):
@@ -113,9 +102,6 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     
     
     profile_data = fetch_profile(token, start_date, now)
-    if not profile_data:
-        st.error("Failed to fetch profile data from Leetify API.")
-        return []
 
         
     for game in profile_data.get("games", []):
@@ -149,12 +135,20 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     
     return new_games
 
+# Manual refresh button functionality
+def refresh_all(days):
+    new_games = fetch_new_games(days=2)
+    st.session_state['cached_games'] = get_cached_games()
+    for game in st.session_state['cached_games']:
+        st.session_state['cached_konsum'][game['game_id']] = get_cached_konsum(game['game_id'])
+    st.success("Data refreshed!")
+
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
 
 # Home Page 
-def home_page(days=2):
-    days = st.input.number_input("Days back", min_value=1, max_value=15, value=2)
+def home_page():
+    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
     games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
@@ -237,9 +231,9 @@ def home_page(days=2):
     st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
-def input_data_page(days=2):
+def input_data_page():
     st.header("Input BubbeData")
-    
+    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
@@ -293,9 +287,9 @@ STAT_MAP = {
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
-def stats_page(days=2):
+def stats_page():
     st.header("Stats")
-    
+    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
     stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
@@ -440,11 +434,13 @@ html_code = f"""
 st.markdown(html_code, unsafe_allow_html=True)
 initialize_session_state()
 
-st.sidebar.title("Navigation")
-days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
-page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 if st.button("🔄 Refresh Data"):
     refresh_all(days)
+
+
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
+
 if page == "🏠 Home":
     home_page()
 elif page == "📝 Input":
