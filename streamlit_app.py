@@ -105,28 +105,30 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     start_date = now - timedelta(days=days)
 
     profile_data = fetch_profile(token, start_date, now)
+    
+    # 👀 Show raw API data
+    st.subheader("Raw Leetify API Response")
+    st.json(profile_data)
+
     if not profile_data or "games" not in profile_data:
-        print("No 'games' key in profile_data")
+        st.warning("No games found or invalid response")
         return []
 
     existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
-    print(existing_game_ids)
+
+    st.subheader("Existing Game IDs in Sheets")
+    st.write(existing_game_ids)
+
     for game in profile_data.get("games", []):
         game_id = game.get("id")
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
             continue
 
         try:
-            print(new_games)
-            # Corrected field name
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
             if finished_at > now - timedelta(days=days):
                 finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
-
-                # Corrected field name: 'score' instead of 'scores'
                 score = game.get("score", [0, 0])
-
-                # Try to pull match result from `playerStats` if available
                 match_result = game.get("playerStats", {}).get("matchResult", "Unknown")
 
                 new_game = {
@@ -136,12 +138,21 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
                     "scores": score,
                     "game_finished_at": finished_at_str
                 }
+
+                # 👀 Show each new game candidate as it's added
+                st.subheader(f"New Game Added: {game_id}")
+                st.json(new_game)
+
                 new_games.append(new_game)
         except (ValueError, KeyError) as e:
-            print(f"Skipping game {game_id} due to error: {e}")
+            st.error(f"Skipping game {game_id} due to error: {e}")
             continue
 
-    # Save new games to Sheets and update cache
+    # 👀 Summary of what will be saved
+    st.subheader("All New Games to Save")
+    st.json(new_games)
+
+    # Save new games to Sheets
     for game in new_games:
         save_game_data(
             game["game_id"],
