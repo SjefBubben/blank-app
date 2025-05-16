@@ -36,18 +36,22 @@ def initialize_session_state():
             st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
 
 # Manual refresh button functionality
-def refresh_all(days):
-    # Clear cached data and refetch from Sheets
+def refresh_all(days=2):
+    # Step 1: Fetch new games from Leetify
+    new_games = fetch_new_games(days=days)
+
+    # Step 2: Update Sheets (handled in `fetch_new_games`) and re-fetch all data
     games_df, konsum_df = fetch_all_sheets_data()
     st.session_state['games_df'] = games_df
     st.session_state['konsum_df'] = konsum_df
+
+    # Step 3: Update session cache
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
-    st.session_state['cached_konsum'] = {}
-    for game in st.session_state['cached_games']:
-        st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
-    # Fetch new games from Leetify API
-    new_games = fetch_new_games(days=2)
-    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+    st.session_state['cached_konsum'] = {
+        game['game_id']: fetch_konsum_data_for_game(game['game_id'])
+        for game in st.session_state['cached_games']
+    }
+
     st.success("Data refreshed!")
 
 # Remove caching decorators since we use session state
@@ -135,20 +139,12 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     
     return new_games
 
-# Manual refresh button functionality
-def refresh_all(days):
-    new_games = fetch_new_games(days=2)
-    st.session_state['cached_games'] = get_cached_games()
-    for game in st.session_state['cached_games']:
-        st.session_state['cached_konsum'][game['game_id']] = get_cached_konsum(game['game_id'])
-    st.success("Data refreshed!")
-
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
 
 # Home Page 
-def home_page():
-    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
+def home_page(days):
+    
     games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
 
     if not games:
@@ -231,9 +227,9 @@ def home_page():
     st.write(f"Total games across all profiles: {len(games)}")
 
 # Input Data Page
-def input_data_page():
+def input_data_page(days):
     st.header("Input BubbeData")
-    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
+    
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
@@ -287,9 +283,9 @@ STAT_MAP = {
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
-def stats_page():
+def stats_page(days):
     st.header("Stats")
-    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
+    
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
     stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
@@ -434,13 +430,11 @@ html_code = f"""
 st.markdown(html_code, unsafe_allow_html=True)
 initialize_session_state()
 
-if st.button("🔄 Refresh Data"):
-    refresh_all()
-
-
 st.sidebar.title("Navigation")
+days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
-
+if st.button("🔄 Refresh Data"):
+    refresh_all(days)
 if page == "🏠 Home":
     home_page()
 elif page == "📝 Input":
