@@ -276,6 +276,9 @@ def stats_page():
 
     with st.spinner("Loading stats..."):
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
+        if not games:
+            st.warning("No games found in the selected timeframe.")
+            return
         stats_data = []
         # Track stats for averaging
         player_stats = {name: {'kd': [], 'rt': [], 'trade': []} for name in ALLOWED_PLAYERS}
