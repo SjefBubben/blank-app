@@ -62,7 +62,7 @@ def get_cached_konsum(game_id):
 def fetch_profile(steam_id, token, start_date, end_date, count=30):
     url = "https://api.cs-prod.leetify.com/api/v2/games/history"
     headers = {
-        "Authorization": f"Bearer {'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0ZTUxNGFkZi1iNzM3LTRiMjctOTZiZS05NDgzODEzNzVjOGUiLCJpYXQiOjE3NDcyMjM5Njh9.GyA0_PbTLG5UKoc7SPXhAJmY5briA608x1rxjIUwxNI'}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"
     }
 
