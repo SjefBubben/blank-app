@@ -462,7 +462,7 @@ st.markdown(html_code, unsafe_allow_html=True)
 initialize_session_state()
 
 if st.button("🔄 Refresh Data"):
-    refresh_all()
+    refresh_all(days)
 
 
 st.sidebar.title("Navigation")
