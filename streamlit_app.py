@@ -101,9 +101,8 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     start_date = now - timedelta(days=days)
     
     
-    profile_data = fetch_profile(steam_id, token, start_date, now)
-    if not profile_data:
-        continue
+    profile_data = fetch_profile("x", token, start_date, now)
+
         
     for game in profile_data.get("games", []):
         game_id = game.get("id")
