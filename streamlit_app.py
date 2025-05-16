@@ -240,7 +240,7 @@ def home_page(days):
                         </div>
                     """, unsafe_allow_html=True)
 
-    st.write(f"Total games across all profiles: {len(games)}")
+    st.write(f"Total games: {len(games)}")
 
 # Input Data Page
 def input_data_page(days):
