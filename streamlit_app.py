@@ -36,7 +36,7 @@ def initialize_session_state():
             st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
 
 # Manual refresh button functionality
-def refresh_all():
+def refresh_all(days):
     # Clear cached data and refetch from Sheets
     games_df, konsum_df = fetch_all_sheets_data()
     st.session_state['games_df'] = games_df
@@ -137,7 +137,7 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     return new_games
 
 # Manual refresh button functionality
-def refresh_all():
+def refresh_all(days):
     new_games = fetch_new_games(days=2)
     st.session_state['cached_games'] = get_cached_games()
     for game in st.session_state['cached_games']:
@@ -436,7 +436,7 @@ st.markdown(html_code, unsafe_allow_html=True)
 initialize_session_state()
 
 if st.button("🔄 Refresh Data"):
-    refresh_all()
+    refresh_all(days=200)
 
 
 st.sidebar.title("Navigation")
