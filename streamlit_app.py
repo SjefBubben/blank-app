@@ -63,6 +63,10 @@ def get_cached_konsum(game_id):
 
 # Data Fetching Functions
 
+import requests
+import json
+from datetime import timedelta
+
 def fetch_profile(token, start_date, end_date, count=30):
     url = "https://api.cs-prod.leetify.com/api/v2/games/history"
     headers = {
@@ -84,11 +88,12 @@ def fetch_profile(token, start_date, end_date, count=30):
     }
 
     try:
-        response = requests.get(url, headers=headers, params={"filters": str(filters)})
+        response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
         print(f"Failed fetching profile: {e}")
+        print(f"Response content: {response.text}")
         return None
 
 def fetch_game_details(game_id):
