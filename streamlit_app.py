@@ -84,7 +84,7 @@ def fetch_profile(token, start_date, end_date, count=30):
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f"Failed fetching profile for {steam_id}: {e}")
+        print(f"Failed fetching profile {e}")
         return None
 
 def fetch_game_details(game_id):
