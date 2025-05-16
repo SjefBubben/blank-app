@@ -100,28 +100,28 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     now = datetime.utcnow()
     start_date = now - timedelta(days=days)
     
-    for steam_id in STEAM_IDS:
-        profile_data = fetch_profile(steam_id, token, start_date, now)
-        if not profile_data:
-            continue
+    
+    profile_data = fetch_profile(steam_id, token, start_date, now)
+    if not profile_data:
+        continue
         
-        for game in profile_data.get("games", []):
-            game_id = game.get("id")
-            existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
-            if game_id not in existing_game_ids and game_id not in {g["game_id"] for g in new_games}:
-                try:
-                    finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
-                    if finished_at > now - timedelta(days=days):
-                        finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
-                        new_games.append({
-                            "game_id": game_id,
-                            "map_name": game.get("mapName", "Unknown"),
-                            "match_result": game.get("matchResult", "Unknown"),
-                            "scores": game.get("scores", [0, 0]),
-                            "game_finished_at": finished_at_str
-                        })
-                except (ValueError, KeyError):
-                    continue
+    for game in profile_data.get("games", []):
+        game_id = game.get("id")
+        existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
+        if game_id not in existing_game_ids and game_id not in {g["game_id"] for g in new_games}:
+            try:
+                finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+                if finished_at > now - timedelta(days=days):
+                    finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
+                    new_games.append({
+                        "game_id": game_id,
+                        "map_name": game.get("mapName", "Unknown"),
+                        "match_result": game.get("matchResult", "Unknown"),
+                        "scores": game.get("scores", [0, 0]),
+                        "game_finished_at": finished_at_str
+                    })
+            except (ValueError, KeyError):
+                continue
     
     # Save new games to Sheets and update cache
     for game in new_games:
