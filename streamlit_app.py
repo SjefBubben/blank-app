@@ -47,7 +47,7 @@ def refresh_all():
     for game in st.session_state['cached_games']:
         st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
     # Fetch new games from Leetify API
-    new_games = fetch_new_games(days=2)
+    new_games = fetch_new_games(days)
     print(len(new_games))
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
     st.success("Data refreshed!")
@@ -100,7 +100,7 @@ def fetch_game_details(game_id):
     except requests.RequestException:
         return None
 
-def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0ZTUxNGFkZi1iNzM3LTRiMjctOTZiZS05NDgzODEzNzVjOGUiLCJpYXQiOjE3NDcyMjM5Njh9.GyA0_PbTLG5UKoc7SPXhAJmY5briA608x1rxjIUwxNI"):
+def fetch_new_games(days, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0ZTUxNGFkZi1iNzM3LTRiMjctOTZiZS05NDgzODEzNzVjOGUiLCJpYXQiOjE3NDcyMjM5Njh9.GyA0_PbTLG5UKoc7SPXhAJmY5briA608x1rxjIUwxNI"):
     new_games = []
     now = datetime.utcnow()
     start_date = now - timedelta(days=days)
@@ -466,6 +466,7 @@ if st.button("🔄 Refresh Data"):
 
 
 st.sidebar.title("Navigation")
+days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
 if page == "🏠 Home":
