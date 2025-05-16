@@ -12,7 +12,7 @@ PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
 
 # List of SteamIDs to fetch games from
-STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
+#STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
 
 # Player Name Mapping (unchanged)
 NAME_MAPPING = {
@@ -59,7 +59,7 @@ def get_cached_konsum(game_id):
 
 # Data Fetching Functions
 
-def fetch_profile(steam_id, token, start_date, end_date, count=30):
+def fetch_profile(token, start_date, end_date, count=30):
     url = "https://api.cs-prod.leetify.com/api/v2/games/history"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -101,7 +101,7 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     start_date = now - timedelta(days=days)
     
     
-    profile_data = fetch_profile("x", token, start_date, now)
+    profile_data = fetch_profile(token, start_date, now)
 
         
     for game in profile_data.get("games", []):
@@ -435,7 +435,7 @@ st.markdown(html_code, unsafe_allow_html=True)
 initialize_session_state()
 
 if st.button("🔄 Refresh Data"):
-    refresh_all(days=200)
+    refresh_all()
 
 
 st.sidebar.title("Navigation")
