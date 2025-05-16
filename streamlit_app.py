@@ -470,10 +470,10 @@ days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
 if page == "🏠 Home":
-    home_page()
+    home_page(days)
 elif page == "📝 Input":
-    input_data_page()
+    input_data_page(days)
 elif page == "📊 Stats":
-    stats_page()
+    stats_page(days)
 elif page == "🚽 Motivation":
     motivation_page()
