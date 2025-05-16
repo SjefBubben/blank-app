@@ -106,7 +106,7 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
             continue
         
         for game in profile_data.get("games", []):
-            game_id = game.get("gameId")
+            game_id = game.get("id")
             existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
             if game_id not in existing_game_ids and game_id not in {g["game_id"] for g in new_games}:
                 try:
@@ -118,7 +118,7 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
                             "map_name": game.get("mapName", "Unknown"),
                             "match_result": game.get("matchResult", "Unknown"),
                             "scores": game.get("scores", [0, 0]),
-                            "game_finished_at": finished_at
+                            "game_finished_at": finished_at_str
                         })
                 except (ValueError, KeyError):
                     continue
