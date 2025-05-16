@@ -136,7 +136,7 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     return new_games
 
 # Manual refresh button functionality
-def refresh_all(days):
+def refresh_all():
     new_games = fetch_new_games(days=2)
     st.session_state['cached_games'] = get_cached_games()
     for game in st.session_state['cached_games']:
