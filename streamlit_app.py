@@ -62,6 +62,7 @@ def get_cached_konsum(game_id):
 # Data Fetching Functions
 
 def fetch_profile(token, start_date, end_date, count=30):
+    print("📡 fetch_profile() called!")
     url = "https://api.cs-prod.leetify.com/api/v2/games/history"
     headers = {
         "Authorization": f"Bearer {token}",
