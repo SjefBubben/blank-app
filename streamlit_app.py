@@ -122,9 +122,10 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
         game_id = game.get("id")
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
             continue
-        st.write(game)    
+           
         try:
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            st.write(game_id "-" now.str "-" finished_at)
             if finished_at > now - timedelta(days=days):
                 finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                 score = game.get("score", [0, 0])
