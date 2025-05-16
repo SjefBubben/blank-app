@@ -59,12 +59,32 @@ def get_cached_konsum(game_id):
 
 # Data Fetching Functions
 
-def fetch_profile(steam_id):
+def fetch_profile(steam_id, token, start_date, end_date, count=30):
+    url = "https://api.cs-prod.leetify.com/api/v2/games/history"
+    headers = {
+        "Authorization": f"Bearer {'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0ZTUxNGFkZi1iNzM3LTRiMjctOTZiZS05NDgzODEzNzVjOGUiLCJpYXQiOjE3NDcyMjM5Njh9.GyA0_PbTLG5UKoc7SPXhAJmY5briA608x1rxjIUwxNI'}",
+        "Content-Type": "application/json"
+    }
+
+    filters = {
+        "currentPeriod": {
+            "start": start_date.isoformat() + "Z",
+            "end": end_date.isoformat() + "Z",
+            "count": count
+        },
+        "previousPeriod": {
+            "start": (start_date - timedelta(days=30)).isoformat() + "Z",
+            "end": start_date.isoformat() + "Z",
+            "count": count
+        }
+    }
+
     try:
-        response = requests.get(PROFILE_API + steam_id, timeout=10)
+        response = requests.get(url, headers=headers, params={"filters": str(filters)})
         response.raise_for_status()
         return response.json()
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(f"Failed fetching profile for {steam_id}: {e}")
         return None
 
 def fetch_game_details(game_id):
@@ -75,12 +95,13 @@ def fetch_game_details(game_id):
     except requests.RequestException:
         return None
 
-def fetch_new_games(days=2):
+def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI0ZTUxNGFkZi1iNzM3LTRiMjctOTZiZS05NDgzODEzNzVjOGUiLCJpYXQiOjE3NDcyMjM5Njh9.GyA0_PbTLG5UKoc7SPXhAJmY5briA608x1rxjIUwxNI"):
     new_games = []
     now = datetime.utcnow()
+    start_date = now - timedelta(days=days)
     
     for steam_id in STEAM_IDS:
-        profile_data = fetch_profile(steam_id)
+        profile_data = fetch_profile(steam_id, token, start_date, now)
         if not profile_data:
             continue
         
