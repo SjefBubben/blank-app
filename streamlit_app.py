@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import base64
+import json
 import pandas as pd
 import plotly.express as px
 from operator import itemgetter
@@ -63,10 +64,6 @@ def get_cached_konsum(game_id):
 
 # Data Fetching Functions
 
-import requests
-import json
-from datetime import timedelta
-
 def fetch_profile(token, start_date, end_date, count=30):
     url = "https://api.cs-prod.leetify.com/api/v2/games/history"
     headers = {
@@ -111,6 +108,9 @@ def fetch_new_games(days=2, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3Mi
     
     
     profile_data = fetch_profile(token, start_date, now)
+    if not profile_data:
+        st.error("Failed to fetch profile data from Leetify API.")
+        return []
 
         
     for game in profile_data.get("games", []):
