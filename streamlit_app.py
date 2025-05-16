@@ -115,9 +115,6 @@ def fetch_new_games(days, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi
 
     existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
 
-    st.subheader("Existing Game IDs in Sheets")
-    st.write(existing_game_ids)
-
     for game in profile_data.get("games", []):
         game_id = game.get("id")
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
@@ -128,7 +125,6 @@ def fetch_new_games(days, token="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi
             if finished_at > now - timedelta(days=days):
                 finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                 score = game.get("score", [0, 0])
-                st.write(score)
                 match_result = game.get("playerStats", {}).get("matchResult", "Unknown")
 
                 new_game = {
