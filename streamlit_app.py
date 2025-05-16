@@ -23,6 +23,10 @@ NAME_MAPPING = {
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
+if 'games_df' not in st.session_state or 'konsum_df' not in st.session_state:
+    games_df, konsum_df = fetch_all_sheets_data()
+    st.session_state['games_df'] = games_df
+    st.session_state['konsum_df'] = konsum_df
 # Initialize session state with all Sheets data
 def initialize_session_state():
     if 'initialized' not in st.session_state:
