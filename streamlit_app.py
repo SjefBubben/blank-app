@@ -381,7 +381,7 @@ def stats_page(days):
             return [f"{name} ({value:{format_str}})" if value > 0 else "-" for name, value in players + [("", 0)] * (3 - len(players))]
 
         table_data = {
-            "HLTV": format_stat(top_kd, ".2f"),
+            "HLTV Rating": format_stat(top_kd, ".2f"),
             "Reaction Time (s)": format_stat(top_rt, ".2f"),
             "Trade Attempts (%)": format_stat(top_trade, ".1f"),
             "Beer": format_stat(top_beer, ".0f"),
