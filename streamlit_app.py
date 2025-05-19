@@ -314,7 +314,7 @@ def stats_page(days):
             return
         stats_data = []
         # Track stats for averaging
-        player_stats = {name: {'hltv': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
+        player_stats = {name: {'hltv': [], 'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
         game_counts = {name: 0 for name in ALLOWED_PLAYERS}  # Track games played per player
 
         # Collect stats and count games played
@@ -331,6 +331,7 @@ def stats_page(days):
                     stats_data.append({"Game": game_label, "Player": name, "Value": value})
                     # Collect stats for averaging
                     player_stats[name]['hltv'].append(p.get("hltvRating", 0))
+                    player_stats[name]['kd'].append(p.get("kdRatio", 0))
                     player_stats[name]['rt'].append(p.get("reactionTime", 0))
                     player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
                     player_stats[name]['beer'].append(konsum.get(name, {}).get('beer', 0))
@@ -340,6 +341,7 @@ def stats_page(days):
         avg_stats = {}
         for name in player_stats:
             hltv_list = [x for x in player_stats[name]['hltv'] if x > 0]
+            kd_list = [x for x in player_stats[name]['kd'] if x > 0]
             rt_list = [x for x in player_stats[name]['rt'] if x > 0]
             trade_list = [x for x in player_stats[name]['trade'] if x > 0]
             beer_list = [x for x in player_stats[name]['beer'] if x > 0]
@@ -348,6 +350,7 @@ def stats_page(days):
             games_played = game_counts[name] if game_counts[name] > 0 else 1  # Avoid division by zero
             avg_stats[name] = {
                 'hltv': sum(hltv_list) / games_played if hltv_list else 0,
+                'kd': sum(kd_list) / games_played if kd_list else 0,
                 'rt': sum(rt_list) / games_played if rt_list else float('inf'),
                 'trade': sum(trade_list) / games_played if trade_list else 0,
                 'beer': sum(beer_list) if beer_list else 0,
@@ -355,8 +358,12 @@ def stats_page(days):
             }
 
         # Find top 3 players for each stat
-        top_kd = sorted(
+        top_hltv = sorted(
             [(name, stats['hltv']) for name, stats in avg_stats.items() if stats['hltv'] > 0],
+            key=lambda x: x[1], reverse=True
+        )[:3]
+        top_kd = sorted(
+            [(name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0],
             key=lambda x: x[1], reverse=True
         )[:3]
         top_rt = sorted(
@@ -381,7 +388,8 @@ def stats_page(days):
             return [f"{name} ({value:{format_str}})" if value > 0 else "-" for name, value in players + [("", 0)] * (3 - len(players))]
 
         table_data = {
-            "HLTV Rating": format_stat(top_kd, ".2f"),
+            "HLTV Rating": format_stat(top_hltv, ".2f"),
+            "K/D - Ratio": format_stat(top_kd, ".2f"),
             "Reaction Time (s)": format_stat(top_rt, ".2f"),
             "Trade Attempts (%)": format_stat(top_trade, ".1f"),
             "Beer": format_stat(top_beer, ".0f"),
