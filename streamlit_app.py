@@ -351,7 +351,7 @@ def stats_page(days):
         # Find best averages
         best_kd = max((name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0)
         best_rt = max((name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf'))
-        best_trade = max((name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0)
+        best_trade = min((name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0)
         best_beer = max((name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0)
         best_water = max((name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0)
 
