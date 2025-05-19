@@ -59,7 +59,7 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
         st.session_state['games_df'] = pd.concat([existing_games, new_row], ignore_index=True)
 
 def save_konsum_data(game_id, player_name, beer, water_glasses):
-    """Save konsum data to Sheets and update cached data."""
+    """Save konsum data to Sheets and update cached data with minimal API calls."""
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("konsum")
     
@@ -68,12 +68,13 @@ def save_konsum_data(game_id, player_name, beer, water_glasses):
     
     if not matching_rows.empty:
         row_index = matching_rows.index[0] + 2  # +2 for 1-based indexing and header row
-        sheet.update_cell(row_index, 3, beer)
-        sheet.update_cell(row_index, 4, water_glasses)
+        # Batch update beer and water in a single API call
+        sheet.update([[beer, water_glasses]], f'C{row_index}:D{row_index}')
         
         # Update cached konsum data
         st.session_state['konsum_df'].loc[matching_rows.index, ['beer', 'water']] = [beer, water_glasses]
     else:
+        # Append new row
         sheet.append_row([game_id, player_name, beer, water_glasses])
         
         # Update cached konsum data
