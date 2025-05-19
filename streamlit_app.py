@@ -361,7 +361,7 @@ def stats_page(days):
 
         for name, stats in avg_stats.items():
             hltv = stats['hltv']
-            trade = stats['trade']
+            trade = stats['trade']/100
             total_beer = stats['beer']
             games_played = game_counts[name] if game_counts[name] > 0 else 1
             avg_beer_per_game = total_beer / games_played
