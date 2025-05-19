@@ -330,23 +330,30 @@ def stats_page(days):
                     player_stats[name]['kd'].append(p.get("kdRatio", 0))
                     player_stats[name]['rt'].append(p.get("reactionTime", 0))
                     player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
-
+                    player_stats[name]['beer'].append(p.get("beer", 0))
+                    player_stats[name]['water'].append(p.get("water", 0))
         # Calculate average stats and find best players
         avg_stats = {}
         for name in player_stats:
             kd_list = [x for x in player_stats[name]['kd'] if x > 0]
             rt_list = [x for x in player_stats[name]['rt'] if x > 0]
             trade_list = [x for x in player_stats[name]['trade'] if x > 0]
+            beer_list = [x for x in player_stats[name]['beer'] if x > 0]
+            water_list = [x for x in player_stats[name]['water'] if x > 0]
             avg_stats[name] = {
                 'kd': sum(kd_list) / len(kd_list) if kd_list else 0,
                 'rt': sum(rt_list) / len(rt_list) if rt_list else float('inf'),
-                'trade': sum(trade_list) / len(trade_list) if trade_list else 0
+                'trade': sum(trade_list) / len(trade_list) if trade_list else 0,
+                'beer': sum(beer_list) if beer_list else 0,
+                'water': sum(water_list) if water_list else 0
             }
 
         # Find best averages
         best_kd = max((name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0)
         best_rt = max((name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf'))
         best_trade = max((name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0)
+        best_beer = max((name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0)
+        best_water = max((name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0)
 
         # Display best average stats
         st.markdown(f"""
@@ -355,6 +362,8 @@ def stats_page(days):
                 <p>Best avg KD: {best_kd[0]} ({best_kd[1]:.2f})</p>
                 <p>Best avg Reaction Time: {best_rt[0]} ({best_rt[1]:.2f}s)</p>
                 <p>Best avg Trade Attempts: {best_trade[0]} ({best_trade[1]:.1f}%)</p>
+                <p>Most beer: {best_beer[0]} ({best_beer[1]:.1f}%)</p>
+                <p>Most water: {best_water[0]} ({best_water[1]:.1f}%)</p>
             </div>
         """, unsafe_allow_html=True)
 
