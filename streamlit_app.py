@@ -330,7 +330,7 @@ def stats_page(days):
                     value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
                     stats_data.append({"Game": game_label, "Player": name, "Value": value})
                     # Collect stats for averaging
-                    player_stats[name]['hltv'].append(p.get("hltvrating", 0))
+                    player_stats[name]['hltv'].append(p.get("hltvRating", 0))
                     player_stats[name]['rt'].append(p.get("reactionTime", 0))
                     player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
                     player_stats[name]['beer'].append(konsum.get(name, {}).get('beer', 0))
@@ -347,7 +347,7 @@ def stats_page(days):
             
             games_played = game_counts[name] if game_counts[name] > 0 else 1  # Avoid division by zero
             avg_stats[name] = {
-                'hltv': sum(kd_list) / games_played if hltv_list else 0,
+                'hltv': sum(hltv_list) / games_played if hltv_list else 0,
                 'rt': sum(rt_list) / games_played if rt_list else float('inf'),
                 'trade': sum(trade_list) / games_played if trade_list else 0,
                 'beer': sum(beer_list) if beer_list else 0,
