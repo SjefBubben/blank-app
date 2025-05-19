@@ -362,8 +362,8 @@ def stats_page(days):
                 <p>Best avg KD: {best_kd[0]} ({best_kd[1]:.2f})</p>
                 <p>Best avg Reaction Time: {best_rt[0]} ({best_rt[1]:.2f}s)</p>
                 <p>Best avg Trade Attempts: {best_trade[0]} ({best_trade[1]:.1f}%)</p>
-                <p>Most beer: {best_beer[0]} ({best_beer[1]:.2f})</p>
-                <p>Most water: {best_water[0]} ({best_water[1]:.2f})</p>
+                <p>Most beer: {best_beer[0]} ({best_beer[1]})</p>
+                <p>Most water: {best_water[0]} ({best_water[1]})</p>
             </div>
         """, unsafe_allow_html=True)
 
