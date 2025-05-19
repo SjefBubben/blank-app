@@ -330,8 +330,8 @@ def stats_page(days):
                     player_stats[name]['kd'].append(p.get("kdRatio", 0))
                     player_stats[name]['rt'].append(p.get("reactionTime", 0))
                     player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
-                    player_stats[name]['beer'].append(p.get("beer", 0))
-                    player_stats[name]['water'].append(p.get("water", 0))
+                    player_stats[name]['beer'].append(konsum.get("beer", 0))
+                    player_stats[name]['water'].append(konsum.get("water", 0))
         # Calculate average stats and find best players
         avg_stats = {}
         for name in player_stats:
