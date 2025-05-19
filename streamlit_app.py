@@ -357,7 +357,7 @@ def stats_page(days):
 
         # --- Add BubbeRating ---
         trade_weight = 0.5
-        beer_weight = 1.0
+        beer_weight = 0.9
 
         for name, stats in avg_stats.items():
             hltv = stats['hltv']
@@ -367,9 +367,8 @@ def stats_page(days):
             avg_beer_per_game = total_beer / games_played
 
             bubbe_rating = (
-                hltv +
-                trade * trade_weight +
-                avg_beer_per_game * beer_weight
+                hltv*(avg_beer_per_game*beer_weight) +
+                trade * trade_weight 
             )
 
             avg_stats[name]['bubbe'] = round(bubbe_rating, 2)
