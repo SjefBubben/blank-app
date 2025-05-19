@@ -315,20 +315,29 @@ def stats_page(days):
         stats_data = []
         # Track stats for averaging
         player_stats = {name: {'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
-
-        # Calculate average stats and find best players
-        avg_stats = {}
         game_counts = {name: 0 for name in ALLOWED_PLAYERS}  # Track games played per player
 
-        # Count games played per player
+        # Collect stats and count games played
         for game in games:
             details = fetch_game_details(game["game_id"])
+            konsum = get_cached_konsum(game["game_id"])
+            game_label = f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
+
             for p in details.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
                 if name in ALLOWED_PLAYERS:
                     game_counts[name] += 1
+                    value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
+                    stats_data.append({"Game": game_label, "Player": name, "Value": value})
+                    # Collect stats for averaging
+                    player_stats[name]['kd'].append(p.get("kdRatio", 0))
+                    player_stats[name]['rt'].append(p.get("reactionTime", 0))
+                    player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
+                    player_stats[name]['beer'].append(konsum.get(name, {}).get('beer', 0))
+                    player_stats[name]['water'].append(konsum.get(name, {}).get('water', 0))
 
-        # Calculate averages
+        # Calculate average stats
+        avg_stats = {}
         for name in player_stats:
             kd_list = [x for x in player_stats[name]['kd'] if x > 0]
             rt_list = [x for x in player_stats[name]['rt'] if x > 0]
@@ -345,24 +354,46 @@ def stats_page(days):
                 'water': sum(water_list) / games_played if water_list else 0
             }
 
-        # Find best averages
-        best_kd = max((name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0)
-        best_rt = max((name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf'))
-        best_trade = min((name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0)
-        best_beer = max((name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0)
-        best_water = max((name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0)
+        # Find top 3 players for each stat
+        top_kd = sorted(
+            [(name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0],
+            key=lambda x: x[1], reverse=True
+        )[:3]
+        top_rt = sorted(
+            [(name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf')],
+            key=lambda x: x[1]
+        )[:3]
+        top_trade = sorted(
+            [(name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0],
+            key=lambda x: x[1], reverse=True
+        )[:3]
+        top_beer = sorted(
+            [(name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0],
+            key=lambda x: x[1], reverse=True
+        )[:3]
+        top_water = sorted(
+            [(name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0],
+            key=lambda x: x[1], reverse=True
+        )[:3]
 
-        # Display best average stats
-        st.markdown(f"""
-            <div style="padding: 10px; border: 1px solid #f0f0f0; border-radius: 5px; margin-bottom: 10px;">
-                <h4>Best Average Stats Across Games</h4>
-                <p>Best avg KD: {best_kd[0]} ({best_kd[1]:.2f})</p>
-                <p>Best avg Reaction Time: {best_rt[0]} ({best_rt[1]:.2f}s)</p>
-                <p>Best avg Trade Attempts: {best_trade[0]} ({best_trade[1]:.1f}%)</p>
-                <p>Most beer: {best_beer[0]} ({best_beer[1]})</p>
-                <p>Most water: {best_water[0]} ({best_water[1]})</p>
-            </div>
-        """, unsafe_allow_html=True)
+        # Format the top 3 for display
+        def format_stat(players, format_str):
+            return [f"{name} ({value:{format_str}})" if value > 0 else "-" for name, value in players + [("", 0)] * (3 - len(players))]
+
+        table_data = {
+            "KD": format_stat(top_kd, ".2f"),
+            "Reaction Time (s)": format_stat(top_rt, ".2f"),
+            "Trade Attempts (%)": format_stat(top_trade, ".1f"),
+            "Beer": format_stat(top_beer, ".1f"),
+            "Water": format_stat(top_water, ".1f")
+        }
+
+        # Convert to DataFrame for display
+        df_table = pd.DataFrame(table_data, index=["1st", "2nd", "3rd"])
+
+        # Display the table
+        st.markdown("### Best Average Stats Across Games")
+        st.dataframe(df_table, use_container_width=True)
 
         if stats_data:
             df = pd.DataFrame(stats_data)
