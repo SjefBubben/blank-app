@@ -312,12 +312,11 @@ def stats_page(days):
         if not games:
             st.warning("No games found in the selected timeframe.")
             return
-        stats_data = []
-        # Track stats for averaging
-        player_stats = {name: {'hltv': [], 'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
-        game_counts = {name: 0 for name in ALLOWED_PLAYERS}  # Track games played per player
 
-        # Collect stats and count games played
+        stats_data = []
+        player_stats = {name: {'hltv': [], 'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
+        game_counts = {name: 0 for name in ALLOWED_PLAYERS}
+
         for game in games:
             details = fetch_game_details(game["game_id"])
             konsum = get_cached_konsum(game["game_id"])
@@ -329,7 +328,7 @@ def stats_page(days):
                     game_counts[name] += 1
                     value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
                     stats_data.append({"Game": game_label, "Player": name, "Value": value})
-                    # Collect stats for averaging
+                    
                     player_stats[name]['hltv'].append(p.get("hltvRating", 0))
                     player_stats[name]['kd'].append(p.get("kdRatio", 0))
                     player_stats[name]['rt'].append(p.get("reactionTime", 0))
@@ -337,7 +336,6 @@ def stats_page(days):
                     player_stats[name]['beer'].append(konsum.get(name, {}).get('beer', 0))
                     player_stats[name]['water'].append(konsum.get(name, {}).get('water', 0))
 
-        # Calculate average stats
         avg_stats = {}
         for name in player_stats:
             hltv_list = [x for x in player_stats[name]['hltv'] if x > 0]
@@ -347,7 +345,7 @@ def stats_page(days):
             beer_list = [x for x in player_stats[name]['beer'] if x > 0]
             water_list = [x for x in player_stats[name]['water'] if x > 0]
             
-            games_played = game_counts[name] if game_counts[name] > 0 else 1  # Avoid division by zero
+            games_played = game_counts[name] if game_counts[name] > 0 else 1
             avg_stats[name] = {
                 'hltv': sum(hltv_list) / games_played if hltv_list else 0,
                 'kd': sum(kd_list) / games_played if kd_list else 0,
@@ -357,33 +355,37 @@ def stats_page(days):
                 'water': sum(water_list) if water_list else 0
             }
 
-        # Find top 3 players for each stat
-        top_hltv = sorted(
-            [(name, stats['hltv']) for name, stats in avg_stats.items() if stats['hltv'] > 0],
-            key=lambda x: x[1], reverse=True
-        )[:3]
-        top_kd = sorted(
-            [(name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0],
-            key=lambda x: x[1], reverse=True
-        )[:3]
-        top_rt = sorted(
-            [(name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf')],
-            key=lambda x: x[1]
-        )[:3]
-        top_trade = sorted(
-            [(name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0],
-            key=lambda x: x[1], reverse=True
-        )[:3]
-        top_beer = sorted(
-            [(name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0],
-            key=lambda x: x[1], reverse=True
-        )[:3]
-        top_water = sorted(
-            [(name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0],
-            key=lambda x: x[1], reverse=True
-        )[:3]
+        # --- Add BubbeRating ---
+        hltv_weight = 1.5
+        trade_weight = 0.5
+        beer_weight = 0.3
+        rt_weight = 1.0
 
-        # Format the top 3 for display
+        for name, stats in avg_stats.items():
+            hltv = stats['hltv']
+            trade = stats['trade']
+            beer = stats['beer']
+            rt = stats['rt']
+            rt = min(rt, 1.0)  # Cap RT to 1.0s for fairness
+
+            bubbe_rating = (
+                hltv * hltv_weight +
+                trade * trade_weight +
+                beer * beer_weight -
+                rt * rt_weight
+            )
+
+            avg_stats[name]['bubbe'] = round(bubbe_rating, 2)
+
+        # --- Top 3 players for each stat ---
+        top_hltv = sorted([(name, stats['hltv']) for name, stats in avg_stats.items() if stats['hltv'] > 0], key=lambda x: x[1], reverse=True)[:3]
+        top_kd = sorted([(name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0], key=lambda x: x[1], reverse=True)[:3]
+        top_rt = sorted([(name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf')], key=lambda x: x[1])[:3]
+        top_trade = sorted([(name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0], key=lambda x: x[1], reverse=True)[:3]
+        top_beer = sorted([(name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0], key=lambda x: x[1], reverse=True)[:3]
+        top_water = sorted([(name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0], key=lambda x: x[1], reverse=True)[:3]
+        top_bubbe = sorted([(name, stats['bubbe']) for name, stats in avg_stats.items()], key=lambda x: x[1], reverse=True)[:3]
+
         def format_stat(players, format_str):
             return [f"{name} ({value:{format_str}})" if value > 0 else "-" for name, value in players + [("", 0)] * (3 - len(players))]
 
@@ -393,7 +395,8 @@ def stats_page(days):
             "Reaction Time (s)": format_stat(top_rt, ".2f"),
             "Trade Attempts (%)": format_stat(top_trade, ".1f"),
             "Beer": format_stat(top_beer, ".0f"),
-            "Water": format_stat(top_water, ".0f")
+            "Water": format_stat(top_water, ".0f"),
+            "BubbeRating": format_stat(top_bubbe, ".2f")
         }
 
         # Convert to DataFrame for display
