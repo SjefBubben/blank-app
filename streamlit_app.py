@@ -388,7 +388,7 @@ def stats_page(days):
         table_data = {
             "HLTV Rating": format_stat(top_hltv, ".2f"),
             "K/D - Ratio": format_stat(top_kd, ".2f"),
-            "Reaction Time (s)": format_stat(top_rt, ".2f"),
+            "ReactionTime(s)": format_stat(top_rt, ".2f"),
             "Trade (%)": format_stat(top_trade, ".1f"),
             "Beer": format_stat(top_beer, ".0f"),
             "Water": format_stat(top_water, ".0f"),
