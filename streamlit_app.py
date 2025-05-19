@@ -1,18 +1,20 @@
 import streamlit as st
 import requests
+import base64
+import json
 import pandas as pd
 import plotly.express as px
 from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
-from DataInout import fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
-
+from DataInput import fetch_all_sheets_data, fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
 # API Endpoints
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
+leetify_token = st.secrets["leetify"]["api_token"]
 
 # List of SteamIDs to fetch games from
-STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
+#STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
 
 # Player Name Mapping (unchanged)
 NAME_MAPPING = {
@@ -22,13 +24,73 @@ NAME_MAPPING = {
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-# Fetch Functions
-def fetch_profile(steam_id):
+# Initialize session state with all Sheets data
+def initialize_session_state():
+    if 'initialized' not in st.session_state:
+        st.session_state['initialized'] = True
+        # Fetch all Sheets data once
+        games_df, konsum_df = fetch_all_sheets_data()
+        st.session_state['games_df'] = games_df
+        st.session_state['konsum_df'] = konsum_df
+        st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+        st.session_state['cached_konsum'] = {}
+        for game in st.session_state['cached_games']:
+            st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
+
+# Manual refresh button functionality
+def refresh_all(days):
+    # Clear cached data and refetch from Sheets
+    games_df, konsum_df = fetch_all_sheets_data()
+    st.session_state['games_df'] = games_df
+    st.session_state['konsum_df'] = konsum_df
+    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+    st.session_state['cached_konsum'] = {}
+    for game in st.session_state['cached_games']:
+        st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
+    # Fetch new games from Leetify API
+    new_games = fetch_new_games(days)
+    print(len(new_games))
+    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+    st.success("Data refreshed!")
+
+# Remove caching decorators since we use session state
+def get_cached_games(days):
+    return fetch_games_within_last_48_hours(days)
+
+def get_cached_konsum(game_id):
+    return fetch_konsum_data_for_game(game_id) or {}
+
+# Data Fetching Functions
+
+def fetch_profile(token, start_date, end_date, count=30):
+    print("📡 fetch_profile() called!")
+    url = "https://api.cs-prod.leetify.com/api/v2/games/history"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    filters = {
+        "currentPeriod": {
+            "start": start_date.isoformat() + "Z",
+            "end": end_date.isoformat() + "Z",
+            "count": count
+        },
+        "previousPeriod": {
+            "start": (start_date - timedelta(days=30)).isoformat() + "Z",
+            "end": start_date.isoformat() + "Z",
+            "count": count
+        }
+    }
+
     try:
-        response = requests.get(PROFILE_API + steam_id, timeout=10)
+        response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
-        return response.json()
-    except requests.RequestException:
+        data = response.json()
+        
+        return data
+    except requests.RequestException as e:
+        print(f"Failed fetching profile: {e}")
         return None
 
 def fetch_game_details(game_id):
@@ -39,36 +101,47 @@ def fetch_game_details(game_id):
     except requests.RequestException:
         return None
 
-def fetch_new_games(days=2):
-    saved_games = fetch_games_within_last_48_hours(days)
-    saved_game_ids = {g["game_id"] for g in saved_games}
+def fetch_new_games(days, token=leetify_token):
     new_games = []
-    games_to_fetch = set()
     now = datetime.utcnow()
+    start_date = now - timedelta(days=days)
 
-    for steam_id in STEAM_IDS:
-        profile_data = fetch_profile(steam_id)
-        if not profile_data:
+    profile_data = fetch_profile(token, start_date, now)
+    
+
+
+    if not profile_data or "games" not in profile_data:
+        st.warning("No games found or invalid response")
+        return []
+
+    existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
+
+    for game in profile_data.get("games", []):
+        game_id = game.get("id")
+        if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
+            continue
+           
+        try:
+            finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            if finished_at > now - timedelta(days=days):
+                finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
+                score = game.get("score", [0, 0])
+                match_result = game.get("playerStats", {}).get("matchResult", "Unknown")
+
+                new_game = {
+                    "game_id": game_id,
+                    "map_name": game.get("mapName", "Unknown"),
+                    "match_result": match_result,
+                    "scores": score,
+                    "game_finished_at": finished_at_str
+                }
+
+                new_games.append(new_game)
+        except (ValueError, KeyError) as e:
+            st.error(f"Skipping game {game_id} due to error: {e}")
             continue
 
-        for game in profile_data.get("games", []):
-            game_id = game.get("gameId")
-            if game_id not in saved_game_ids and game_id not in {g["game_id"] for g in new_games}:
-                try:
-                    finished_at = datetime.strptime(game["gameFinishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
-                    if finished_at > now - timedelta(days=days):
-                        finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
-                        new_games.append({
-                            "game_id": game_id,
-                            "map_name": game.get("mapName", "Unknown"),
-                            "match_result": game.get("matchResult", "Unknown"),
-                            "scores": game.get("scores", [0, 0]),
-                            "game_finished_at": finished_at
-                        })
-                        games_to_fetch.add(game_id)
-                except (ValueError, KeyError):
-                    continue
-
+    # Save new games to Sheets
     for game in new_games:
         save_game_data(
             game["game_id"],
@@ -76,52 +149,24 @@ def fetch_new_games(days=2):
             game["match_result"],
             game["scores"][0],
             game["scores"][1],
-            game["game_finished_at"].strftime("%Y-%m-%d %H:%M:%S")
+            game["game_finished_at"]
         )
 
-    game_details = {gid: fetch_game_details(gid) for gid in games_to_fetch if fetch_game_details(gid)}
-    for game in new_games:
-        game["details"] = game_details.get(game["game_id"], {})
-
     return new_games
 
-@st.cache_data(ttl=300)
-def get_cached_games(days=2):
-    return fetch_games_within_last_48_hours(days)
-
-@st.cache_data(ttl=300)
-def get_cached_konsum(game_id):
-    return fetch_konsum_data_for_game(game_id) or {}
-
-def initialize_session_data(days=2):
-    with st.spinner("Refreshing data from all profiles..."):
-        new_games = fetch_new_games(days)
-    return new_games
-
-# Stat Mapping and Helper
-stat_display_mapping = {
-    "K/D Ratio": "kdRatio", "ADR (Average Damage per Round)": "dpr", "HLTV Rating": "hltvRating",
-    "Enemies Flashed": "flashbangThrown", "Friends Flashed": "flashbangHitFoe", "Avg. Unused Utility": "utilityOnDeathAvg",
-    "Trade Kill Opportunities": "tradeKillOpportunities", "Trade Kill Attempts": "tradeKillAttempts",
-    "Trade Kill Success": "tradeKillsSucceeded", "2k Kills": "multi2k", "3k Kills": "multi3k",
-    "4k Kills": "multi4k", "5k Kills": "multi5k", "Flashbang Leading to Kill": "flashbangLeadingToKill",
-    "Reaction Time": "reactionTime", "HE Grenades Thrown": "heThrown", "Molotovs Thrown": "molotovThrown",
-    "Smokes Thrown": "smokeThrown"
-}
 
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
 
-# Home Page (No Session State)
-def home_page():
-    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
-    with st.spinner("Fetching games from all profiles..."):
-        new_games = fetch_new_games(days)
-        games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"], reverse=True)
-
+# Home Page 
+def home_page(days):
+    
+    games = get_cached_games(days)
     if not games:
         st.warning("No games found across all profiles.")
         return
+
+    games = sorted(games, key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     game_options = [f"{g.get('map_name', 'Unknown')} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
     selected_game = st.selectbox("Pick a game", game_options)
@@ -152,17 +197,19 @@ def home_page():
                 best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == best_trade]
                 worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == worst_trade]
 
-                worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)  # High is bad
-                best_hltv = max(p.get("hltvRating", 0) for p in players)  # High is good
+                worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)
+                best_hltv = max(p.get("hltvRating", 0) for p in players)
 
                 worst_util_players = [p for p in players if p.get("utilityOnDeathAvg",0) == worst_util]
                 best_hltv_players = [p for p in players if p.get("hltvRating",0) == best_hltv]
 
-                col1, col2 = st.columns(2)
+                # Add spacing between columns using st.columns with gap
+                col1, col2 = st.columns([1, 1], gap="small")
+                col3, col4 = st.columns([1, 1], gap="small")
 
                 with col1:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🔥 Reaction Time</h3>
                             <h4>💪 Gooner: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
                             <h4>🍺 Pils-bitch: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
@@ -171,18 +218,16 @@ def home_page():
 
                 with col2:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #2196F3; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #1976D2; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🎯 Trade Kill Attempts</h3>
                             <h4>✅ Rizzler: {', '.join(p['name'] for p in best_trade_players)} ({best_trade:.1f}%)</h4>
                             <h4>❌ Baiterbot: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade:.1f}%)</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
-                col3, col4 = st.columns(2)
-
                 with col3:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #F44336; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #D32F2F; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>💣 Utility on Death</h3>
                             <h4>🔥 McRizzler: {', '.join(p['name'] for p in worst_util_players)} ({worst_util:.2f})</h4>
                         </div>
@@ -190,23 +235,18 @@ def home_page():
 
                 with col4:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #4CAF50; color: white; border-radius: 10px; text-align: center;">
+                        <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🏆 Best HLTV Rating</h3>
                             <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
                         </div>
                     """, unsafe_allow_html=True)
 
-    if new_games:
-        st.subheader("New Games")
-        for g in new_games:
-            st.write(f"{g['map_name']} - {g['match_result'].capitalize()} ({g['scores'][0]}:{g['scores'][1]}) - ID: {g['game_id']}")
-    
-    st.write(f"Total games across all profiles: {len(games)}")
+    st.write(f"Total games: {len(games)}")
 
 # Input Data Page
-def input_data_page():
+def input_data_page(days):
     st.header("Input BubbeData")
-    days = st.number_input("Days back", min_value=1, max_value=10, value=2)
+    
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
@@ -260,16 +300,21 @@ STAT_MAP = {
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
-def stats_page():
+def stats_page(days):
     st.header("Stats")
-    days = st.number_input("Days back", min_value=1, max_value=7, value=2)
+    
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
     stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
 
     with st.spinner("Loading stats..."):
         games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
+        if not games:
+            st.warning("No games found in the selected timeframe.")
+            return
         stats_data = []
+        # Track stats for averaging
+        player_stats = {name: {'kd': [], 'rt': [], 'trade': []} for name in ALLOWED_PLAYERS}
 
         for game in games:
             details = fetch_game_details(game["game_id"])
@@ -281,6 +326,37 @@ def stats_page():
                 if name in ALLOWED_PLAYERS:
                     value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
                     stats_data.append({"Game": game_label, "Player": name, "Value": value})
+                    # Collect stats for averaging
+                    player_stats[name]['kd'].append(p.get("kdRatio", 0))
+                    player_stats[name]['rt'].append(p.get("reactionTime", 0))
+                    player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
+
+        # Calculate average stats and find best players
+        avg_stats = {}
+        for name in player_stats:
+            kd_list = [x for x in player_stats[name]['kd'] if x > 0]
+            rt_list = [x for x in player_stats[name]['rt'] if x > 0]
+            trade_list = [x for x in player_stats[name]['trade'] if x > 0]
+            avg_stats[name] = {
+                'kd': sum(kd_list) / len(kd_list) if kd_list else 0,
+                'rt': sum(rt_list) / len(rt_list) if rt_list else float('inf'),
+                'trade': sum(trade_list) / len(trade_list) if trade_list else 0
+            }
+
+        # Find best averages
+        best_kd = max((name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0)
+        best_rt = min((name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf'))
+        best_trade = max((name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0)
+
+        # Display best average stats
+        st.markdown(f"""
+            <div style="padding: 10px; border: 1px solid #f0f0f0; border-radius: 5px; margin-bottom: 10px;">
+                <h4>Best Average Stats Across Games</h4>
+                <p>Best avg KD: {best_kd[0]} ({best_kd[1]:.2f})</p>
+                <p>Best avg Reaction Time: {best_rt[0]} ({best_rt[1]:.2f}s)</p>
+                <p>Best avg Trade Attempts: {best_trade[0]} ({best_trade[1]:.1f}%)</p>
+            </div>
+        """, unsafe_allow_html=True)
 
         if stats_data:
             df = pd.DataFrame(stats_data)
@@ -314,7 +390,7 @@ def Download_Game_Stats(days):
                         }
 
                         # Add all game stats
-                        for display_name, stat_key in stat_display_mapping.items():
+                        for display_name, stat_key in STAT_MAP.items():
                             player_data[display_name] = get_player_stat(player, stat_key)
 
                         # Add Beer & Water
@@ -348,20 +424,41 @@ def motivation_page():
     """, unsafe_allow_html=True)
 
 # Main UI
-st.image("bubblogo2.png", width=80)
-st.markdown("<h1 style='text-align: center;'>Bubberne Gaming</h1>", unsafe_allow_html=True)
+def img_to_base64(img_path):
+    with open(img_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
-if st.button("🔄 Refresh Data"):
-    st.session_state.new_games = initialize_session_data(days=2)
+img_base64 = img_to_base64("bubblogo2.png")
 
+html_code = f"""
+<div style="
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 150px;  /* optional: gives some vertical space */
+    text-align: center;
+">
+    <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
+    <h1 style="margin: 0;">Bubberne Gaming</h1>
+</div>
+"""
+
+st.markdown(html_code, unsafe_allow_html=True)
+initialize_session_state()
 st.sidebar.title("Navigation")
+days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
+if st.button("🔄 Refresh Data"):
+    refresh_all(days)
+
+
 if page == "🏠 Home":
-    home_page()
+    home_page(days)
 elif page == "📝 Input":
-    input_data_page()
+    input_data_page(days)
 elif page == "📊 Stats":
-    stats_page()
+    stats_page(days)
 elif page == "🚽 Motivation":
     motivation_page()
