@@ -396,7 +396,7 @@ def stats_page(days):
         }
 
         # Convert to DataFrame for display
-        df_table = pd.DataFrame(table_data, index=["1st", "2nd", "3rd"])
+        df_table = pd.DataFrame(table_data, index=["1", "2", "3"])
 
         # Display the table
         st.markdown("### Best Average Stats Across Games")
