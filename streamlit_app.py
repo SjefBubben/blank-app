@@ -384,8 +384,8 @@ def stats_page(days):
             "KD": format_stat(top_kd, ".2f"),
             "Reaction Time (s)": format_stat(top_rt, ".2f"),
             "Trade Attempts (%)": format_stat(top_trade, ".1f"),
-            "Beer": format_stat(top_beer),
-            "Water": format_stat(top_water)
+            "Beer": (top_beer),
+            "Water": (top_water)
         }
 
         # Convert to DataFrame for display
