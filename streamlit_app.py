@@ -316,36 +316,33 @@ def stats_page(days):
         # Track stats for averaging
         player_stats = {name: {'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
 
+        # Calculate average stats and find best players
+        avg_stats = {}
+        game_counts = {name: 0 for name in ALLOWED_PLAYERS}  # Track games played per player
+
+        # Count games played per player
         for game in games:
             details = fetch_game_details(game["game_id"])
-            konsum = get_cached_konsum(game["game_id"])
-            game_label = f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
-
             for p in details.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
                 if name in ALLOWED_PLAYERS:
-                    value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
-                    stats_data.append({"Game": game_label, "Player": name, "Value": value})
-                    # Collect stats for averaging
-                    player_stats[name]['kd'].append(p.get("kdRatio", 0))
-                    player_stats[name]['rt'].append(p.get("reactionTime", 0))
-                    player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
-                    player_stats[name]['beer'].append(konsum.get(name, {}).get('beer', 0))
-                    player_stats[name]['water'].append(konsum.get(name, {}).get('water', 0))
-        # Calculate average stats and find best players
-        avg_stats = {}
+                    game_counts[name] += 1
+
+        # Calculate averages
         for name in player_stats:
             kd_list = [x for x in player_stats[name]['kd'] if x > 0]
             rt_list = [x for x in player_stats[name]['rt'] if x > 0]
             trade_list = [x for x in player_stats[name]['trade'] if x > 0]
             beer_list = [x for x in player_stats[name]['beer'] if x > 0]
             water_list = [x for x in player_stats[name]['water'] if x > 0]
+            
+            games_played = game_counts[name] if game_counts[name] > 0 else 1  # Avoid division by zero
             avg_stats[name] = {
-                'kd': sum(kd_list) / len(kd_list) if kd_list else 0,
-                'rt': sum(rt_list) / len(rt_list) if rt_list else float('inf'),
-                'trade': sum(trade_list) / len(trade_list) if trade_list else 0,
-                'beer': sum(beer_list) if beer_list else 0,
-                'water': sum(water_list) if water_list else 0
+                'kd': sum(kd_list) / games_played if kd_list else 0,
+                'rt': sum(rt_list) / games_played if rt_list else float('inf'),
+                'trade': sum(trade_list) / games_played if trade_list else 0,
+                'beer': sum(beer_list) / games_played if beer_list else 0,
+                'water': sum(water_list) / games_played if water_list else 0
             }
 
         # Find best averages
