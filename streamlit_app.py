@@ -350,8 +350,8 @@ def stats_page(days):
                 'kd': sum(kd_list) / games_played if kd_list else 0,
                 'rt': sum(rt_list) / games_played if rt_list else float('inf'),
                 'trade': sum(trade_list) / games_played if trade_list else 0,
-                'beer': sum(beer_list) / games_played if beer_list else 0,
-                'water': sum(water_list) / games_played if water_list else 0
+                'beer': sum(beer_list) if beer_list else 0,
+                'water': sum(water_list) if water_list else 0
             }
 
         # Find top 3 players for each stat
@@ -384,8 +384,8 @@ def stats_page(days):
             "KD": format_stat(top_kd, ".2f"),
             "Reaction Time (s)": format_stat(top_rt, ".2f"),
             "Trade Attempts (%)": format_stat(top_trade, ".1f"),
-            "Beer": format_stat(top_beer, ".1f"),
-            "Water": format_stat(top_water, ".1f")
+            "Beer": format_stat(top_beer),
+            "Water": format_stat(top_water)
         }
 
         # Convert to DataFrame for display
