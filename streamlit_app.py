@@ -314,7 +314,7 @@ def stats_page(days):
             return
         stats_data = []
         # Track stats for averaging
-        player_stats = {name: {'kd': [], 'rt': [], 'trade': []} for name in ALLOWED_PLAYERS}
+        player_stats = {name: {'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
 
         for game in games:
             details = fetch_game_details(game["game_id"])
