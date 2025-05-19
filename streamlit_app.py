@@ -296,7 +296,7 @@ def input_data_page(days):
 
 # Stats Page
 STAT_MAP = {
-    "K/D Ratio": "kdRatio", "ADR": "dpr", "HLTV Rating": "hltvRating", "Reaction Time": "reactionTime",
+    "K/D Ratio": "kdRatio", "ADR": "dpr", "HLTV Rating": "hltvRating", "Reaction Time": "reactionTime", "TradeAttempts": "tradeKillAttemptsPercentage"
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
