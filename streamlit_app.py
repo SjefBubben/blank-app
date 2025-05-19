@@ -314,7 +314,7 @@ def stats_page(days):
             return
         stats_data = []
         # Track stats for averaging
-        player_stats = {name: {'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
+        player_stats = {name: {'hltv': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
         game_counts = {name: 0 for name in ALLOWED_PLAYERS}  # Track games played per player
 
         # Collect stats and count games played
