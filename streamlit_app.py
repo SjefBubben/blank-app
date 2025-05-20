@@ -488,28 +488,15 @@ html_code = f"""
 </div>
 """
 st.markdown(html_code, unsafe_allow_html=True)
-days = st.number_input("Days back", min_value=1, max_value=15, value=2)
-initialize_session_state()
-st.markdown("""
-    <style>
-    /* Hide the original SVG icon */
-    section[data-testid="stSidebar"] button[kind="icon"] svg {
-        display: none;
-    }
 
-    /* Style the button and emoji */
-    section[data-testid="stSidebar"] button[kind="icon"]::before {
-        content: '🔄';
-        font-size: 26px;
-        display: block;
-        text-align: center;
-    }
-    </style>
-""", unsafe_allow_html=True)
+
+#Start caching
+initialize_session_state()
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
+days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 if st.button("🔄 Refresh Data"):
     refresh_all(days)
 
