@@ -488,7 +488,7 @@ html_code = f"""
 </div>
 """
 st.markdown(html_code, unsafe_allow_html=True)
-days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
+days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 initialize_session_state()
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
