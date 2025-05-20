@@ -490,6 +490,25 @@ html_code = f"""
 st.markdown(html_code, unsafe_allow_html=True)
 days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 initialize_session_state()
+st.markdown("""
+    <style>
+    /* Make the sidebar toggle icon larger */
+    section[data-testid="stSidebar"] button[kind="icon"] svg {
+        width: 32px !important;
+        height: 32px !important;
+        stroke-width: 3 !important;
+    }
+
+    /* Optionally change color */
+    section[data-testid="stSidebar"] button[kind="icon"] svg path {
+        stroke: #FF4B4B !important;  /* Streamlit red */
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Example sidebar
+st.sidebar.title("Sidebar Menu")
+st.sidebar.button("Do Something")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
