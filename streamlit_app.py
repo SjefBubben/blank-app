@@ -480,18 +480,17 @@ html_code = f"""
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 150px;  /* optional: gives some vertical space */
+    height: 150px;  
     text-align: center;
 ">
     <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
     <h1 style="margin: 0;">Bubberne Gaming</h1>
 </div>
 """
-
 st.markdown(html_code, unsafe_allow_html=True)
+days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
 initialize_session_state()
 st.sidebar.title("Navigation")
-days = st.sidebar.number_input("Days back", min_value=1, max_value=15, value=2)
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
 if st.button("🔄 Refresh Data"):
