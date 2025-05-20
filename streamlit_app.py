@@ -492,23 +492,21 @@ days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 initialize_session_state()
 st.markdown("""
     <style>
-    /* Make the sidebar toggle icon larger */
+    /* Hide the original SVG icon */
     section[data-testid="stSidebar"] button[kind="icon"] svg {
-        width: 32px !important;
-        height: 32px !important;
-        stroke-width: 3 !important;
+        display: none;
     }
 
-    /* Optionally change color */
-    section[data-testid="stSidebar"] button[kind="icon"] svg path {
-        stroke: #FF4B4B !important;  /* Streamlit red */
+    /* Style the button and emoji */
+    section[data-testid="stSidebar"] button[kind="icon"]::before {
+        content: '🔄';
+        font-size: 26px;
+        display: block;
+        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Example sidebar
-st.sidebar.title("Sidebar Menu")
-st.sidebar.button("Do Something")
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
