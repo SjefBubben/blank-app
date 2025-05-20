@@ -497,15 +497,9 @@ st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
 #Refresh og datepicker
-col1, col2 = st.columns([2, 1])  
-
-with col1:
-    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
-
-# Refresh må komme etter days
-with col2:
-    if st.button("🔄 Refresh Data"):
-        refresh_all(days)
+days = st.number_input("Days back", min_value=1, max_value=15, value=2)
+if st.button("🔄 Refresh Data"):
+    refresh_all(days)
 
 
 if page == "🏠 Home":
