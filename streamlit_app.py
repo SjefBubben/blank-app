@@ -305,13 +305,13 @@ def input_data_page(days):
                     st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
                     prev_beer = konsum.get(name, {}).get("beer", 0)
                     prev_water = konsum.get(name, {}).get("water", 0)
-                    col1, col2 = st.columns(2)
+                    col1, col2, col3 = st.columns([1, 1, 1])
                     beer = col1.number_input(f"Beers", min_value=0, value=prev_beer, key=f"beer-{name}-{game['game_id']}")
                     water = col2.number_input(f"Water", min_value=0, value=prev_water, key=f"water-{name}-{game['game_id']}")
-                    if beer != prev_beer or water != prev_water:
+                    if col3.button("Save", key=f"save-{name}-{game['game_id']}"):
                         save_konsum_data(game["game_id"], name, beer, water)
                         st.session_state[game["game_id"]][name] = {"beer": beer, "water": water}
-                        st.success(f"Updated {name}: {beer} beers, {water} water")
+                        st.success(f"✅ Saved {name}: {beer} beer(s), {water} water(s)")
 
 # Stats Page
 STAT_MAP = {
