@@ -252,7 +252,23 @@ def input_data_page(days):
     if not games:
         st.warning("No games found in the selected timeframe.")
         return
+    # Gather all unique player names (after mapping)
+    all_players = set()
+    for game in games:
+        details = fetch_game_details(game.get("game_id"))
+        if details:
+            for p in details.get("playerStats", []):
+                name = NAME_MAPPING.get(p["name"], p["name"])
+                if name in ALLOWED_PLAYERS:
+                    all_players.add(name)
 
+    # Player filter
+    selected_players = st.multiselect(
+        "🎯 Filter by Player",
+        options=sorted(all_players),
+        default=[],
+        help="Select one or more players to filter the input view."
+    )
     for game in games:
         
 
@@ -284,6 +300,8 @@ def input_data_page(days):
             for p in details.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
                 if name in ALLOWED_PLAYERS:
+                    if selected_players and name not in selected_players:
+                        continue
                     st.write(f"{name} - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
                     prev_beer = konsum.get(name, {}).get("beer", 0)
                     prev_water = konsum.get(name, {}).get("water", 0)
