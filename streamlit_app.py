@@ -235,7 +235,7 @@ def home_page(days):
 
                 with col4:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
+                        <div style="padding: 15px; background-color: #C82E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🏆 Best HLTV Rating</h3>
                             <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
                         </div>
@@ -319,11 +319,11 @@ def input_data_page(days):
 
                     # Inputs side by side
                     col1, col2 = st.columns(2)
-                    col1.text_input("🍺 Beers", st.session_state[beer_key], key=beer_key)
-                    col2.text_input("💧 Water", st.session_state[water_key], key=water_key)
+                    col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
+                    col2.text_input("Water", st.session_state[water_key], key=water_key)
 
                     # Save button below
-                    if st.button("💾 Save", key=save_key):
+                    if st.button("Save", key=save_key):
                         try:
                             beer = int(st.session_state[beer_key])
                             water = int(st.session_state[water_key])
