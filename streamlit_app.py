@@ -264,10 +264,10 @@ def input_data_page(days):
 
     # Player filter
     selected_players = st.multiselect(
-        "🎯 Filter by Player",
+        "Spiller filtrering",
         options=sorted(all_players),
         default=[],
-        help="Select one or more players to filter the input view."
+        help="Velg gooners du vil rizze."
     )
     for game in games:
         
@@ -305,8 +305,9 @@ def input_data_page(days):
                     st.write(f"{name} - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
                     prev_beer = konsum.get(name, {}).get("beer", 0)
                     prev_water = konsum.get(name, {}).get("water", 0)
-                    beer = st.number_input(f"Beers for {name}", min_value=0, value=prev_beer, key=f"beer-{name}-{game['game_id']}")
-                    water = st.number_input(f"Water for {name}", min_value=0, value=prev_water, key=f"water-{name}-{game['game_id']}")
+                    col1, col2 = st.columns(2)
+                    beer = col1.number_input(f"🍺 Beers", min_value=0, value=prev_beer, key=f"beer-{name}-{game['game_id']}")
+                    water = col2.number_input(f"💧 Water", min_value=0, value=prev_water, key=f"water-{name}-{game['game_id']}")
                     if beer != prev_beer or water != prev_water:
                         save_konsum_data(game["game_id"], name, beer, water)
                         st.session_state[game["game_id"]][name] = {"beer": beer, "water": water}
