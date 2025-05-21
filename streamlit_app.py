@@ -246,12 +246,13 @@ def home_page(days):
 # Input Data Page
 def input_data_page(days):
     st.header("Input BubbeData")
-    
+
     games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
 
     if not games:
         st.warning("No games found in the selected timeframe.")
         return
+
     # Gather all unique player names (after mapping)
     all_players = set()
     for game in games:
@@ -269,28 +270,25 @@ def input_data_page(days):
         default=[],
         help="Velg gooners du vil rizze."
     )
-    for game in games:
-        
 
+    for game in games:
         details = fetch_game_details(game.get("game_id"))
         if not details:
             st.write(f"Skipping game {game.get('game_id', 'unknown')} - no details available.")
             continue
 
-        # Safely access game data with defaults
         map_name = game.get("map_name", "Unknown")
         match_result = game.get("match_result", "Unknown")
         scores = [game["score_team1"], game["score_team2"]]
         game_finished_at = game.get("game_finished_at")
-        
-        # Ensure game_finished_at is a datetime object
+
         if isinstance(game_finished_at, str):
             try:
                 game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
             except ValueError:
-                game_finished_at = datetime.now()  # Fallback to now if parsing fails
+                game_finished_at = datetime.now()
         elif not isinstance(game_finished_at, datetime):
-            game_finished_at = datetime.now()  # Fallback if not a datetime
+            game_finished_at = datetime.now()
 
         label = f"{map_name} - {match_result} ({scores[0]}:{scores[1]}) - {game_finished_at.strftime('%d.%m.%y %H:%M')}"
         with st.expander(label):
@@ -302,16 +300,38 @@ def input_data_page(days):
                 if name in ALLOWED_PLAYERS:
                     if selected_players and name not in selected_players:
                         continue
+
                     st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
+
                     prev_beer = konsum.get(name, {}).get("beer", 0)
                     prev_water = konsum.get(name, {}).get("water", 0)
+
+                    # Keys
+                    beer_key = f"beer_input-{name}-{game['game_id']}"
+                    water_key = f"water_input-{name}-{game['game_id']}"
+                    save_key = f"save_button-{name}-{game['game_id']}"
+
+                    # Initialize if not present
+                    if beer_key not in st.session_state:
+                        st.session_state[beer_key] = str(prev_beer)
+                    if water_key not in st.session_state:
+                        st.session_state[water_key] = str(prev_water)
+
+                    # Inputs side by side
                     col1, col2 = st.columns(2)
-                    beer = col1.number_input(f"Beers", min_value=0, value=prev_beer, key=f"beer-{name}-{game['game_id']}")
-                    water = col2.number_input(f"Water", min_value=0, value=prev_water, key=f"water-{name}-{game['game_id']}")
-                    if st.button("Save", key=f"save-{name}-{game['game_id']}"):
-                        save_konsum_data(game["game_id"], name, beer, water)
-                        st.session_state[game["game_id"]][name] = {"beer": beer, "water": water}
-                        st.success(f"✅ Saved {name}: {beer} beer(s), {water} water(s)")
+                    col1.text_input("🍺 Beers", st.session_state[beer_key], key=beer_key)
+                    col2.text_input("💧 Water", st.session_state[water_key], key=water_key)
+
+                    # Save button below
+                    if st.button("💾 Save", key=save_key):
+                        try:
+                            beer = int(st.session_state[beer_key])
+                            water = int(st.session_state[water_key])
+                            save_konsum_data(game["game_id"], name, beer, water)
+                            st.session_state[game["game_id"]][name] = {"beer": beer, "water": water}
+                            st.success(f"✅ Saved {name}: {beer} beer(s), {water} water(s)")
+                        except ValueError:
+                            st.error("❌ Please enter valid numbers for beer and water.")
 
 # Stats Page
 STAT_MAP = {
