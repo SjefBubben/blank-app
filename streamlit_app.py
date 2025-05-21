@@ -235,7 +235,7 @@ def home_page(days):
 
                 with col4:
                     st.markdown(f"""
-                        <div style="padding: 15px; background-color: #C82E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
+                        <div style="padding: 15px; background-color: #301934; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
                             <h3>🏆 Best HLTV Rating</h3>
                             <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
                         </div>
