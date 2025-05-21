@@ -302,12 +302,12 @@ def input_data_page(days):
                 if name in ALLOWED_PLAYERS:
                     if selected_players and name not in selected_players:
                         continue
-                    st.write(f"{name} - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
+                    st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
                     prev_beer = konsum.get(name, {}).get("beer", 0)
                     prev_water = konsum.get(name, {}).get("water", 0)
                     col1, col2 = st.columns(2)
-                    beer = col1.number_input(f"🍺 Beers", min_value=0, value=prev_beer, key=f"beer-{name}-{game['game_id']}")
-                    water = col2.number_input(f"💧 Water", min_value=0, value=prev_water, key=f"water-{name}-{game['game_id']}")
+                    beer = col1.number_input(f"Beers", min_value=0, value=prev_beer, key=f"beer-{name}-{game['game_id']}")
+                    water = col2.number_input(f"Water", min_value=0, value=prev_water, key=f"water-{name}-{game['game_id']}")
                     if beer != prev_beer or water != prev_water:
                         save_konsum_data(game["game_id"], name, beer, water)
                         st.session_state[game["game_id"]][name] = {"beer": beer, "water": water}
