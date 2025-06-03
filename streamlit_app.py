@@ -406,7 +406,7 @@ def stats_page(days):
             avg_beer_per_game = total_beer / games_played
 
             bubbe_rating = (
-                hltv*(avg_beer_per_game*beer_weight) +
+                hltv+hltv*(avg_beer_per_game*beer_weight) +
                 trade * trade_weight 
             )
 
