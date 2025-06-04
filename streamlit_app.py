@@ -311,27 +311,28 @@ def input_data_page(days):
                     water_key = f"water_input-{name}-{game['game_id']}"
                     save_key = f"save_button-{name}-{game['game_id']}"
 
-                    # Initialize if not present
+                    # Initialize session state if not present
                     if beer_key not in st.session_state:
                         st.session_state[beer_key] = str(prev_beer)
                     if water_key not in st.session_state:
                         st.session_state[water_key] = str(prev_water)
 
-                    # Inputs side by side
-                    col1, col2 = st.columns(2)
-                    col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
-                    col2.text_input("Water", st.session_state[water_key], key=water_key)
+                    # Use a form to group inputs and button
+                    with st.form(key=f"form-{name}-{game['game_id']}"):
+                        col1, col2 = st.columns(2)
+                        beer = col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
+                        water = col2.text_input("Water", st.session_state[water_key], key=water_key)
 
-                    # Save button below
-                    if st.button("Save", key=save_key):
-                        try:
-                            beer = int(st.session_state[beer_key])
-                            water = int(st.session_state[water_key])
-                            save_konsum_data(game["game_id"], name, beer, water)
-                            st.session_state[game["game_id"]][name] = {"beer": beer, "water": water}
-                            st.success(f"✅ Saved {name}: {beer} beer(s), {water} water(s)")
-                        except ValueError:
-                            st.error("❌ Please enter valid numbers for beer and water.")
+                        submitted = st.form_submit_button("Save")
+                        if submitted:
+                            try:
+                                beer_val = int(beer)
+                                water_val = int(water)
+                                save_konsum_data(game["game_id"], name, beer_val, water_val)
+                                st.session_state[game["game_id"]][name] = {"beer": beer_val, "water": water_val}
+                                st.success(f"✅ Saved {name}: {beer_val} beer(s), {water_val} water(s)")
+                            except ValueError:
+                                st.error("❌ Please enter valid numbers for beer and water.")
 
 # Stats Page
 STAT_MAP = {
