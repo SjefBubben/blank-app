@@ -529,29 +529,6 @@ html_code = f"""
 """
 st.markdown(html_code, unsafe_allow_html=True)
 
-st.markdown(
-    """
-    <style>
-    /* Style text and number inputs */
-    input[type="text"], input[type="number"] {
-        background-color: #f0f8ff !important;  /* light blue */
-        color: #333 !important;
-        border: 2px solid #1e90ff !important;  /* blue border */
-        border-radius: 6px !important;
-        padding: 6px 12px !important;
-        font-size: 16px !important;
-    }
-
-    /* Focus state */
-    input[type="text"]:focus, input[type="number"]:focus {
-        border-color: #ff6347 !important;      /* tomato red */
-        outline: none !important;
-        box-shadow: 0 0 5px #ff6347 !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 #Start caching
 initialize_session_state()
 
