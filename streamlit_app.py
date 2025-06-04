@@ -529,7 +529,28 @@ html_code = f"""
 """
 st.markdown(html_code, unsafe_allow_html=True)
 
+st.markdown(
+    """
+    <style>
+    /* Target all number and text inputs */
+    div[data-baseweb="input"] > input {
+        background-color: #f0f8ff;  /* light blue background */
+        color: #333333;             /* text color */
+        border: 2px solid #1e90ff; /* blue border */
+        border-radius: 5px;
+        padding: 5px 10px;
+    }
 
+    /* Change input focus color */
+    div[data-baseweb="input"] > input:focus {
+        border-color: #ff6347;      /* tomato red border on focus */
+        outline: none;
+        box-shadow: 0 0 5px #ff6347;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 #Start caching
 initialize_session_state()
 
