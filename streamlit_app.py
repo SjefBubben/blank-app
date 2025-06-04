@@ -51,7 +51,7 @@ def refresh_all(days):
     new_games = fetch_new_games(days)
     print(len(new_games))
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
-    st.success("Data refreshed!")
+    
 
 # Remove caching decorators since we use session state
 def get_cached_games(days):
