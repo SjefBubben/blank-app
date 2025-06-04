@@ -539,8 +539,6 @@ if st.button("🔄 Refresh Data"):
     refresh_all(days)
 
 
-st.set_page_config(layout="wide")  # Makes more room horizontally
-
 # Create columns to simulate left sidebar
 col1, col2 = st.columns([1, 4])  # Adjust the ratio as needed
 
