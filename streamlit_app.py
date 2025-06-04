@@ -532,20 +532,21 @@ st.markdown(html_code, unsafe_allow_html=True)
 st.markdown(
     """
     <style>
-    /* Target all number and text inputs */
-    div[data-baseweb="input"] > input {
-        background-color: #f0f8ff;  /* light blue background */
-        color: #333333;             /* text color */
-        border: 2px solid #1e90ff; /* blue border */
-        border-radius: 5px;
-        padding: 5px 10px;
+    /* Style text and number inputs */
+    input[type="text"], input[type="number"] {
+        background-color: #f0f8ff !important;  /* light blue */
+        color: #333 !important;
+        border: 2px solid #1e90ff !important;  /* blue border */
+        border-radius: 6px !important;
+        padding: 6px 12px !important;
+        font-size: 16px !important;
     }
 
-    /* Change input focus color */
-    div[data-baseweb="input"] > input:focus {
-        border-color: #ff6347;      /* tomato red border on focus */
-        outline: none;
-        box-shadow: 0 0 5px #ff6347;
+    /* Focus state */
+    input[type="text"]:focus, input[type="number"]:focus {
+        border-color: #ff6347 !important;      /* tomato red */
+        outline: none !important;
+        box-shadow: 0 0 5px #ff6347 !important;
     }
     </style>
     """,
