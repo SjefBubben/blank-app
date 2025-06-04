@@ -540,21 +540,25 @@ col1, col2 = st.columns([1, 1])
 
 with col1:
     st.markdown(
-        '<div style="display: flex; justify-content: center;">',
+        """
+        <div style="width: 150px; margin: 0 auto;">
+        """,
         unsafe_allow_html=True,
     )
     days = st.number_input("", min_value=1, max_value=15, value=2, key="days_input")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with col2:
-    st.markdown("<br>", unsafe_allow_html=True)  # push button down
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
-        '<div style="display: flex; justify-content: center;">',
+        """
+        <div style="width: 150px; margin: 0 auto;">
+        """,
         unsafe_allow_html=True,
     )
     if st.button("🔄 Refresh Data"):
         refresh_all(days)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 if page == "🏠 Home":
