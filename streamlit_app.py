@@ -539,9 +539,9 @@ page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽
 #Refresh og datepicker
 col1, col2 = st.columns([1, 1]) 
 with col1:
-    days = st.number_input("Days back", min_value=1, max_value=15, value=2)
+    days = st.number_input(min_value=1, max_value=15, value=2)
 with col2:
-    if st.button("","🔄 Refresh Data"):
+    if st.button("🔄 Refresh Data"):
         refresh_all(days)
 
 
