@@ -534,19 +534,18 @@ initialize_session_state()
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
+
 #Refresh og datepicker
 days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 if st.button("🔄 Refresh Data"):
     refresh_all(days)
 
 
-
-
 if page == "🏠 Home":
-    st.write("Welcome to the Home page!")
+    home_page(days)
 elif page == "📝 Input":
-    st.write("Input your data here.")
+    input_data_page(days)
 elif page == "📊 Stats":
-    st.write("Here are the stats.")
+    stats_page(days)
 elif page == "🚽 Motivation":
-    st.write("Stay motivated!")
+    motivation_page()
