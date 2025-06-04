@@ -551,6 +551,7 @@ with col2:
         # When clicked, save the temp value to session_state and refresh
         st.session_state["days_value"] = temp_days
         refresh_all(st.session_state["days_value"])
+        
 
 # Now use st.session_state["days_value"] in your app logic
 days = st.session_state["days_value"]
