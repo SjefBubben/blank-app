@@ -532,26 +532,21 @@ st.markdown(html_code, unsafe_allow_html=True)
 #Start caching
 initialize_session_state()
 
-
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 #Refresh og datepicker
 days = st.number_input("Days back", min_value=1, max_value=15, value=2)
 if st.button("🔄 Refresh Data"):
     refresh_all(days)
 
 
-# Create columns to simulate left sidebar
-col1, col2 = st.columns([1, 4])  # Adjust the ratio as needed
 
-with col1:
-    st.markdown("## Navigation")
-    page = st.radio("Go to", ("🏠 Home", "📝 Input", "📊 Stats", "🚽 Motivation"))
 
-with col2:
-    if page == "🏠 Home":
-        st.write("Welcome to the Home page!")
-    elif page == "📝 Input":
-        st.write("Input your data here.")
-    elif page == "📊 Stats":
-        st.write("Here are the stats.")
-    elif page == "🚽 Motivation":
-        st.write("Stay motivated!")
+if page == "🏠 Home":
+    st.write("Welcome to the Home page!")
+elif page == "📝 Input":
+    st.write("Input your data here.")
+elif page == "📊 Stats":
+    st.write("Here are the stats.")
+elif page == "🚽 Motivation":
+    st.write("Stay motivated!")
