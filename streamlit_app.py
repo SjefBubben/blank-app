@@ -542,6 +542,7 @@ col1, col2 = st.columns([1, 1])
 with col1:
     days = st.number_input("Dager tilbake", min_value=1, max_value=15, value=2, key="days_input")
 with col2:
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🔄 Refresh Data"):
         refresh_all(days)
 
