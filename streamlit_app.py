@@ -514,20 +514,28 @@ def Download_Game_Stats(days, game_details_map, konsum_map):
 
 def download_full_database():
     try:
-        all_game_data = []
+        with st.spinner("Fetching ALL games from Google Sheets..."):
+            games_df, konsum_df = fetch_all_sheets_data()
 
-        with st.spinner("Fetching ALL games from database..."):
-            # 👇 replace this with however you actually load game_ids from your Google Sheet
-            all_games = fetch_all_sheets_data()  # returns [{game_id, map_name, game_finished_at}, ...]
+            if games_df.empty:
+                st.warning("No games found in Google Sheets.")
+                return
 
-            for game in sorted(all_games, key=lambda g: g["game_finished_at"].strftime("%Y-%m-%d %H:%M"), reverse=True):
+            all_game_data = []
+
+            # Ensure proper types
+            games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
+
+            # Loop through all games
+            for _, game in games_df.sort_values("game_finished_at", ascending=False).iterrows():
                 game_id = game["game_id"]
-                map_name = game["map_name"]
-                game_details = fetch_game_details(game_id) or {}
+                map_name = game.get("map_name", "Unknown")
+
+                details = fetch_game_details(game_id) or {}
                 konsum_data = get_cached_konsum(game_id) or {}
 
-                for player in game_details.get("playerStats", []):
-                    raw_name = player["name"]
+                for p in details.get("playerStats", []):
+                    raw_name = p["name"]
                     mapped_name = NAME_MAPPING.get(raw_name, raw_name)
                     if mapped_name not in ALLOWED_PLAYERS:
                         continue
@@ -535,17 +543,17 @@ def download_full_database():
                     player_data = {
                         "Game": map_name,
                         "Player": mapped_name,
-                        "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
+                        "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M") if pd.notna(game["game_finished_at"]) else "Unknown",
                     }
 
                     # Add stats from STAT_MAP
                     for display_name, stat_key in STAT_MAP.items():
-                        val = player.get(stat_key, 0)
+                        val = p.get(stat_key, 0)
                         if stat_key == "tradeKillAttemptsPercentage":
                             val = val * 100
                         player_data[display_name] = val
 
-                    # Beer & Water
+                    # Beer & Water from konsum sheet (if exists)
                     player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
                     player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
 
@@ -554,7 +562,7 @@ def download_full_database():
         if all_game_data:
             df_full = pd.DataFrame(all_game_data)
 
-            # optional: also compute BubbeRating per game, not just averages
+            # Optional: BubbeRating per row
             trade_weight = 0.5
             beer_weight = 0.9
             df_full["BubbeRating"] = (
@@ -574,7 +582,7 @@ def download_full_database():
                 mime="text/csv"
             )
         else:
-            st.warning("No game data found in the sheet.")
+            st.warning("No player data found across all games.")
 
     except Exception as e:
         st.error(f"Error downloading full database: {e}")
