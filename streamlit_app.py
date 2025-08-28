@@ -253,15 +253,20 @@ def input_data_page(days):
         st.warning("No games found in the selected timeframe.")
         return
 
-    # Gather all unique player names (after mapping)
+    # Fetch all details once + gather unique players
+    game_details_map = {}
     all_players = set()
+
     for game in games:
         details = fetch_game_details(game.get("game_id"))
-        if details:
-            for p in details.get("playerStats", []):
-                name = NAME_MAPPING.get(p["name"], p["name"])
-                if name in ALLOWED_PLAYERS:
-                    all_players.add(name)
+        if not details:
+            continue
+        game_details_map[game["game_id"]] = details
+
+        for p in details.get("playerStats", []):
+            name = NAME_MAPPING.get(p["name"], p["name"])
+            if name in ALLOWED_PLAYERS:
+                all_players.add(name)
 
     # Player filter
     selected_players = st.multiselect(
@@ -272,7 +277,7 @@ def input_data_page(days):
     )
 
     for game in games:
-        details = fetch_game_details(game.get("game_id"))
+        details = game_details_map.get(game["game_id"])
         if not details:
             st.write(f"Skipping game {game.get('game_id', 'unknown')} - no details available.")
             continue
