@@ -456,15 +456,8 @@ def stats_page(days):
         file_name="all_game_stats.csv",
         mime="text/csv"
     )
-    st.download_button(
-        "Download All Stats as CSV",
-        data=df.to_csv(index=False),
-        file_name="all_game_stats.csv",
-        mime="text/csv"
-                                    )
-
-    # New button for full sheet export
-    download_full_database()
+    if st.button("Download Entire Database (Full CSV)"):
+        download_full_database()
 
 def Download_Game_Stats(days, game_details_map, konsum_map):
     try:
