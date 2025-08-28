@@ -368,7 +368,7 @@ def stats_page(days):
         game_details_map = {}
         konsum_map = {}
         for g in games:
-            game_details_map[g["game_id"]] = fetch_game_details_cached(g["game_id"]) or {}
+            game_details_map[g["game_id"]] = fetch_game_details(g["game_id"]) or {}
             konsum_map[g["game_id"]] = get_cached_konsum(g["game_id"]) or {}
 
         stats_data = []
