@@ -4,6 +4,7 @@ import base64
 import json
 import pandas as pd
 import plotly.express as px
+import threading
 from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
@@ -154,6 +155,12 @@ def fetch_new_games(days, token=leetify_token):
 
     return new_games
 
+def async_save(game_id, name, beer_val, water_val):
+    # Run the actual save in a background thread
+    def _save():
+        save_konsum_data(game_id, name, beer_val, water_val)
+        st.session_state[game_id][name] = {"beer": beer_val, "water": water_val}
+    threading.Thread(target=_save, daemon=True).start()
 
 def get_player_stat(player, stat_key):
     return player.get(stat_key, 0)
@@ -333,9 +340,8 @@ def input_data_page(days):
                             try:
                                 beer_val = int(beer)
                                 water_val = int(water)
-                                save_konsum_data(game["game_id"], name, beer_val, water_val)
-                                st.session_state[game["game_id"]][name] = {"beer": beer_val, "water": water_val}
-                                st.success(f"✅ Saved {name}: {beer_val} beer(s), {water_val} water(s)")
+                                async_save(game["game_id"], name, beer_val, water_val)
+                                st.success(f"💾 Saving {name}: {beer_val} beer(s), {water_val} water(s) in background…")
                             except ValueError:
                                 st.error("❌ Please enter valid numbers for beer and water.")
 
