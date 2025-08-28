@@ -520,7 +520,7 @@ def download_full_database():
             # 👇 replace this with however you actually load game_ids from your Google Sheet
             all_games = fetch_all_sheets_data()  # returns [{game_id, map_name, game_finished_at}, ...]
 
-            for game in sorted(all_games, key=lambda g: g["game_finished_at"], reverse=True):
+            for game in sorted(all_games, key=lambda g: g["game_finished_at"].strftime("%Y-%m-%d %H:%M"), reverse=True):
                 game_id = game["game_id"]
                 map_name = game["map_name"]
                 game_details = fetch_game_details(game_id) or {}
