@@ -451,7 +451,7 @@ def stats_page(days):
     # --- Download CSV of all raw stats ---
     csv = df.to_csv(index=False)
     st.download_button(
-        "Download All Stats as CSV",
+        "Download Selected Stats as CSV",
         data=csv,
         file_name="all_game_stats.csv",
         mime="text/csv"
