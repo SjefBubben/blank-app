@@ -512,6 +512,24 @@ def Download_Game_Stats(days, game_details_map, konsum_map):
     except Exception as e:
         st.error(f"Error downloading stats: {e}")
 
+def konsum_data_for_game(game_id, konsum_df):
+    """Fetch konsum data for a specific game from konsum_df DataFrame."""
+    try:
+        if konsum_df.empty:
+            return {}
+        
+        game_konsum = konsum_df[konsum_df['game_id'] == str(game_id)]
+        konsum_data = {}
+        for _, row in game_konsum.iterrows():
+            player_name = row['player_name']
+            beer = int(row['beer']) if str(row['beer']).isdigit() else 0
+            water = int(row['water']) if str(row['water']).isdigit() else 0
+            konsum_data[player_name] = {'beer': beer, 'water': water}
+        return konsum_data
+    except Exception as e:
+        print(f"⚠️ Error processing konsum data for {game_id}: {e}")
+        return {}
+
 def download_full_database():
     try:
         with st.spinner("Fetching ALL games from Google Sheets..."):
@@ -529,7 +547,7 @@ def download_full_database():
             for _, game in games_df.sort_values("game_finished_at", ascending=False).iterrows():
                 game_id = game["game_id"]
                 map_name = game.get("map_name", "Unknown")
-                konsum_data=fetch_konsum_data_for_game(game_id)
+                konsum_data = konsum_data_for_game(game_id, konsum_df)
 
                 details = fetch_game_details(game_id) or {}
                 
