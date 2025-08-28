@@ -532,7 +532,7 @@ def download_full_database():
                 konsum_data=fetch_konsum_data_for_game(game_id)
 
                 details = fetch_game_details(game_id) or {}
-                konsum_data = konsum_df(game_id) or {}
+                
 
                 for p in details.get("playerStats", []):
                     raw_name = p["name"]
