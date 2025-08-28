@@ -532,7 +532,7 @@ def download_full_database():
                 map_name = game.get("map_name", "Unknown")
 
                 details = fetch_game_details(game_id) or {}
-                konsum_data = get_cached_konsum(game_id) or {}
+                konsum_data = konsum_df(game_id) or {}
 
                 for p in details.get("playerStats", []):
                     raw_name = p["name"]
