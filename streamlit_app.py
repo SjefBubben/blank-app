@@ -351,122 +351,77 @@ STAT_MAP = {
     "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
 }
 
+def load_all_stats(days):
+    games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
+    if not games:
+        return None, None
+
+    rows = []
+    for g in games:
+        details = fetch_game_details(g["game_id"]) or {}
+        konsum = get_cached_konsum(g["game_id"]) or {}
+        game_label = f"{g['map_name']} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
+
+        for p in details.get("playerStats", []):
+            name = NAME_MAPPING.get(p["name"], p["name"])
+            if name not in ALLOWED_PLAYERS:
+                continue
+
+            row = {
+                "Game": game_label,
+                "Player": name,
+                "Beer": konsum.get(name, {}).get("beer", 0),
+                "Water": konsum.get(name, {}).get("water", 0),
+            }
+            # add all stats in STAT_MAP
+            for display_name, stat_key in STAT_MAP.items():
+                row[display_name] = p.get(stat_key, 0)
+            rows.append(row)
+
+    return pd.DataFrame(rows), games
+
 def stats_page(days):
     st.header("Stats")
     
     stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
     selected_stat = st.selectbox("Stat to plot", stat_options)
-    stat_key = STAT_MAP.get(selected_stat, selected_stat.lower())
 
     with st.spinner("Loading stats..."):
-        games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
-        if not games:
+        df, games = load_all_stats(days)
+        if df is None or df.empty:
             st.warning("No games found in the selected timeframe.")
             return
 
-        # --- Fetch all game details once ---
-        game_details_map = {}
-        konsum_map = {}
-        for g in games:
-            game_details_map[g["game_id"]] = fetch_game_details(g["game_id"]) or {}
-            konsum_map[g["game_id"]] = get_cached_konsum(g["game_id"]) or {}
+        # --- compute per-player averages ---
+        grouped = df.groupby("Player").mean(numeric_only=True).reset_index()
 
-        stats_data = []
-        player_stats = {name: {'hltv': [], 'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
-        game_counts = {name: 0 for name in ALLOWED_PLAYERS}
+        # --- Top 3 table for all stats ---
+        top_table = {}
+        for col in stat_options:
+            if col not in df.columns:
+                continue
+            if col == "Reaction Time":
+                top = grouped.sort_values(col, ascending=True).head(3)
+            else:
+                top = grouped.sort_values(col, ascending=False).head(3)
+            formatted = [f"{row.Player} ({row[col]:.2f})" for _, row in top.iterrows()]
+            while len(formatted) < 3:
+                formatted.append("-")
+            top_table[col] = formatted
 
-        for game in games:
-            details = game_details_map[game["game_id"]]
-            konsum = konsum_map[game["game_id"]]
-            game_label = f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
-
-            for p in details.get("playerStats", []):
-                name = NAME_MAPPING.get(p["name"], p["name"])
-                if name in ALLOWED_PLAYERS:
-                    game_counts[name] += 1
-                    value = konsum.get(name, {}).get(stat_key, 0) if stat_key in ["beer", "water"] else p.get(stat_key, 0)
-                    stats_data.append({"Game": game_label, "Player": name, "Value": value})
-                    
-                    player_stats[name]['hltv'].append(p.get("hltvRating", 0))
-                    player_stats[name]['kd'].append(p.get("kdRatio", 0))
-                    player_stats[name]['rt'].append(p.get("reactionTime", 0))
-                    player_stats[name]['trade'].append(p.get("tradeKillAttemptsPercentage", 0) * 100)
-                    player_stats[name]['beer'].append(konsum.get(name, {}).get('beer', 0))
-                    player_stats[name]['water'].append(konsum.get(name, {}).get('water', 0))
-
-        avg_stats = {}
-        for name in player_stats:
-            hltv_list = [x for x in player_stats[name]['hltv'] if x > 0]
-            kd_list = [x for x in player_stats[name]['kd'] if x > 0]
-            rt_list = [x for x in player_stats[name]['rt'] if x > 0]
-            trade_list = [x for x in player_stats[name]['trade'] if x > 0]
-            beer_list = [x for x in player_stats[name]['beer'] if x > 0]
-            water_list = [x for x in player_stats[name]['water'] if x > 0]
-            
-            games_played = game_counts[name] if game_counts[name] > 0 else 1
-            avg_stats[name] = {
-                'hltv': sum(hltv_list) / games_played if hltv_list else 0,
-                'kd': sum(kd_list) / games_played if kd_list else 0,
-                'rt': sum(rt_list) / games_played if rt_list else float('inf'),
-                'trade': sum(trade_list) / games_played if trade_list else 0,
-                'beer': sum(beer_list) if beer_list else 0,
-                'water': sum(water_list) if water_list else 0
-            }
-
-        # --- Add BubbeRating ---
-        trade_weight = 0.5
-        beer_weight = 0.9
-
-        for name, stats in avg_stats.items():
-            hltv = stats['hltv']
-            trade = stats['trade']/100
-            total_beer = stats['beer']
-            games_played = game_counts[name] if game_counts[name] > 0 else 1
-            avg_beer_per_game = total_beer / games_played
-
-            bubbe_rating = (
-                hltv + hltv*(avg_beer_per_game*beer_weight) +
-                trade * trade_weight 
-            )
-
-            avg_stats[name]['bubbe'] = round(bubbe_rating, 2)
-
-        # --- Top 3 players for each stat ---
-        top_hltv = sorted([(name, stats['hltv']) for name, stats in avg_stats.items() if stats['hltv'] > 0], key=lambda x: x[1], reverse=True)[:3]
-        top_kd = sorted([(name, stats['kd']) for name, stats in avg_stats.items() if stats['kd'] > 0], key=lambda x: x[1], reverse=True)[:3]
-        top_rt = sorted([(name, stats['rt']) for name, stats in avg_stats.items() if stats['rt'] < float('inf')], key=lambda x: x[1])[:3]
-        top_trade = sorted([(name, stats['trade']) for name, stats in avg_stats.items() if stats['trade'] > 0], key=lambda x: x[1], reverse=True)[:3]
-        top_beer = sorted([(name, stats['beer']) for name, stats in avg_stats.items() if stats['beer'] > 0], key=lambda x: x[1], reverse=True)[:3]
-        top_water = sorted([(name, stats['water']) for name, stats in avg_stats.items() if stats['water'] > 0], key=lambda x: x[1], reverse=True)[:3]
-        top_bubbe = sorted([(name, stats['bubbe']) for name, stats in avg_stats.items()], key=lambda x: x[1], reverse=True)[:3]
-
-        def format_stat(players, format_str):
-            return [f"{name} ({value:{format_str}})" if value > 0 else "-" for name, value in players + [("", 0)] * (3 - len(players))]
-
-        table_data = {
-            "HLTV Rating": format_stat(top_hltv, ".2f"),
-            "K/D - Ratio": format_stat(top_kd, ".2f"),
-            "ReactionTime(s)": format_stat(top_rt, ".2f"),
-            "Trade (%)": format_stat(top_trade, ".1f"),
-            "Beer": format_stat(top_beer, ".0f"),
-            "Water": format_stat(top_water, ".0f"),
-            "BubbeRating": format_stat(top_bubbe, ".2f")
-        }
-
-        # Convert to DataFrame for display
-        df_table = pd.DataFrame(table_data, index=["1", "2", "3"])
-
-        # Display the table
+        df_table = pd.DataFrame(top_table, index=["1", "2", "3"])
         st.markdown("### Best Average Stats Across Games")
         st.dataframe(df_table, use_container_width=True)
 
-        if stats_data:
-            df = pd.DataFrame(stats_data)
-            fig = px.bar(df, x="Player", y="Value", color="Game", barmode="group", title=f"{selected_stat} per Player")
-            st.plotly_chart(fig)
+        # --- Plot selected stat instantly ---
+        fig = px.bar(df, x="Player", y=selected_stat, color="Game",
+                     barmode="group", title=f"{selected_stat} per Player")
+        st.plotly_chart(fig)
 
-            if st.button("Download All Stats as CSV"):
-                Download_Game_Stats(days, game_details_map, konsum_map)
+        # --- CSV download uses same df ---
+        csv = df.to_csv(index=False)
+        st.download_button("Download All Stats as CSV", data=csv,
+                           file_name="all_game_stats.csv", mime="text/csv")
 
 def Download_Game_Stats(days, game_details_map, konsum_map):
     try:
