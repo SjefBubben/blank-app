@@ -341,7 +341,7 @@ def input_data_page(days):
                                 beer_val = int(beer)
                                 water_val = int(water)
                                 async_save(game["game_id"], name, beer_val, water_val)
-                                st.success(f"💾 Saving {name}: {beer_val} beer(s), {water_val} water(s) in background…")
+                                st.success(f"💾 Saving {name}: {beer_val} beer(s), {water_val} water(s)")
                             except ValueError:
                                 st.error("❌ Please enter valid numbers for beer and water.")
 
@@ -364,13 +364,20 @@ def stats_page(days):
             st.warning("No games found in the selected timeframe.")
             return
 
+        # --- Fetch all game details once ---
+        game_details_map = {}
+        konsum_map = {}
+        for g in games:
+            game_details_map[g["game_id"]] = fetch_game_details_cached(g["game_id"]) or {}
+            konsum_map[g["game_id"]] = get_cached_konsum(g["game_id"]) or {}
+
         stats_data = []
         player_stats = {name: {'hltv': [], 'kd': [], 'rt': [], 'trade': [], 'beer': [], 'water': []} for name in ALLOWED_PLAYERS}
         game_counts = {name: 0 for name in ALLOWED_PLAYERS}
 
         for game in games:
-            details = fetch_game_details(game["game_id"])
-            konsum = get_cached_konsum(game["game_id"])
+            details = game_details_map[game["game_id"]]
+            konsum = konsum_map[game["game_id"]]
             game_label = f"{game['map_name']} ({game['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
 
             for p in details.get("playerStats", []):
@@ -457,21 +464,21 @@ def stats_page(days):
             df = pd.DataFrame(stats_data)
             fig = px.bar(df, x="Player", y="Value", color="Game", barmode="group", title=f"{selected_stat} per Player")
             st.plotly_chart(fig)
-            if st.button("Download All Stats as CSV"):
-                Download_Game_Stats(days)
 
-def Download_Game_Stats(days):
+            if st.button("Download All Stats as CSV"):
+                Download_Game_Stats(days, game_details_map, konsum_map)
+
+def Download_Game_Stats(days, game_details_map, konsum_map):
     try:
         all_game_data = []
-
         with st.spinner("Henter game data..."):
-            games_in_memory = sorted(get_cached_games(days), key=lambda game: game["game_finished_at"], reverse=True)
+            games_in_memory = sorted(get_cached_games(days), key=lambda g: g["game_finished_at"], reverse=True)
 
             for game in games_in_memory:
                 game_id = game["game_id"]
                 map_name = game["map_name"]
-                game_details = fetch_game_details(game_id)
-                konsum_data = get_cached_konsum(game_id)  # Fetch beer & water data
+                game_details = game_details_map.get(game_id, {})
+                konsum_data = konsum_map.get(game_id, {})
 
                 for player in game_details.get("playerStats", []):
                     raw_name = player["name"]
@@ -484,11 +491,9 @@ def Download_Game_Stats(days):
                             "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
                         }
 
-                        # Add all game stats
                         for display_name, stat_key in STAT_MAP.items():
                             player_data[display_name] = get_player_stat(player, stat_key)
 
-                        # Add Beer & Water
                         player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
                         player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
 
