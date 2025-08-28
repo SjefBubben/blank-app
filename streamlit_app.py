@@ -373,55 +373,89 @@ def load_all_stats(days):
                 "Beer": konsum.get(name, {}).get("beer", 0),
                 "Water": konsum.get(name, {}).get("water", 0),
             }
-            # add all stats in STAT_MAP
+            # Add all stats in STAT_MAP
             for display_name, stat_key in STAT_MAP.items():
-                row[display_name] = p.get(stat_key, 0)
+                val = p.get(stat_key, 0)
+                # tradeKillAttemptsPercentage needs scaling
+                if stat_key == "tradeKillAttemptsPercentage":
+                    val = val * 100
+                row[display_name] = val
             rows.append(row)
 
-    return pd.DataFrame(rows), games
+    df = pd.DataFrame(rows)
+
+    # --- Compute per-player averages ---
+    grouped = df.groupby("Player").mean(numeric_only=True).reset_index()
+
+    # --- BubbeRating ---
+    trade_weight = 0.5
+    beer_weight = 0.9
+    games_played = df["Game"].nunique()
+
+    grouped["BubbeRating"] = (
+        grouped["HLTV Rating"] +
+        grouped["HLTV Rating"] * ((grouped["Beer"] / games_played) * beer_weight) +
+        (grouped["TradeAttempts"] / 100) * trade_weight
+    ).round(2)
+
+    return df, grouped
 
 def stats_page(days):
     st.header("Stats")
-    
-    stat_options = list(STAT_MAP.keys()) + ["Beer", "Water"]
-    selected_stat = st.selectbox("Stat to plot", stat_options)
 
     with st.spinner("Loading stats..."):
-        df, games = load_all_stats(days)
+        df, grouped = load_all_stats(days)
         if df is None or df.empty:
             st.warning("No games found in the selected timeframe.")
             return
 
-        # --- compute per-player averages ---
-        grouped = df.groupby("Player").mean(numeric_only=True).reset_index()
+        # --- Build Top 3 Table (static, shown first) ---
+        stat_options = list(STAT_MAP.keys()) + ["Beer", "Water", "BubbeRating"]
 
-        # --- Top 3 table for all stats ---
-        top_table = {}
-        for col in stat_options:
-            if col not in df.columns:
-                continue
-            if col == "Reaction Time":
-                top = grouped.sort_values(col, ascending=True).head(3)
-            else:
-                top = grouped.sort_values(col, ascending=False).head(3)
-            formatted = [f"{row.Player} ({row[col]:.2f})" for _, row in top.iterrows()]
+        def top3(col, ascending=False, fmt=".2f"):
+            if col == "Reaction Time":  # smaller is better
+                ascending = True
+            top = grouped.sort_values(col, ascending=ascending).head(3)
+            formatted = [f"{row.Player} ({row[col]:{fmt}})" for _, row in top.iterrows()]
             while len(formatted) < 3:
                 formatted.append("-")
-            top_table[col] = formatted
+            return formatted
 
-        df_table = pd.DataFrame(top_table, index=["1", "2", "3"])
+        table_data = {
+            "HLTV Rating": top3("HLTV Rating", False, ".2f"),
+            "K/D Ratio": top3("K/D Ratio", False, ".2f"),
+            "Reaction Time": top3("Reaction Time", True, ".2f"),
+            "Trade (%)": top3("TradeAttempts", False, ".1f"),
+            "Beer": top3("Beer", False, ".0f"),
+            "Water": top3("Water", False, ".0f"),
+            "BubbeRating": top3("BubbeRating", False, ".2f"),
+        }
+
+        df_table = pd.DataFrame(table_data, index=["1", "2", "3"])
         st.markdown("### Best Average Stats Across Games")
         st.dataframe(df_table, use_container_width=True)
 
-        # --- Plot selected stat instantly ---
+    # --- Stat picker + graph (below table) ---
+    stat_options = list(STAT_MAP.keys()) + ["Beer", "Water", "BubbeRating"]
+    selected_stat = st.selectbox("Stat to plot", stat_options)
+
+    if selected_stat == "BubbeRating":
+        fig = px.bar(grouped, x="Player", y="BubbeRating",
+                     title="BubbeRating per Player")
+    else:
         fig = px.bar(df, x="Player", y=selected_stat, color="Game",
                      barmode="group", title=f"{selected_stat} per Player")
-        st.plotly_chart(fig)
 
-        # --- CSV download uses same df ---
-        csv = df.to_csv(index=False)
-        st.download_button("Download All Stats as CSV", data=csv,
-                           file_name="all_game_stats.csv", mime="text/csv")
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- Download CSV of all raw stats ---
+    csv = df.to_csv(index=False)
+    st.download_button(
+        "Download All Stats as CSV",
+        data=csv,
+        file_name="all_game_stats.csv",
+        mime="text/csv"
+    )
 
 def Download_Game_Stats(days, game_details_map, konsum_map):
     try:
