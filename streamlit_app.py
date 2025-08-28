@@ -456,6 +456,15 @@ def stats_page(days):
         file_name="all_game_stats.csv",
         mime="text/csv"
     )
+    st.download_button(
+        "Download All Stats as CSV",
+        data=df.to_csv(index=False),
+        file_name="all_game_stats.csv",
+        mime="text/csv"
+                                    )
+
+    # New button for full sheet export
+    download_full_database()
 
 def Download_Game_Stats(days, game_details_map, konsum_map):
     try:
@@ -500,15 +509,6 @@ def Download_Game_Stats(days, game_details_map, konsum_map):
                 file_name="all_game_stats.csv",
                 mime="text/csv"
             )
-        st.download_button(
-            "Download All Stats as CSV",
-            data=df_full.to_csv(index=False),
-            file_name="all_game_stats.csv",
-            mime="text/csv"
-                                    )
-
-        # New button for full sheet export
-        download_full_database()
     except Exception as e:
         st.error(f"Error downloading stats: {e}")
 
