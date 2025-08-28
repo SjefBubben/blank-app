@@ -500,8 +500,84 @@ def Download_Game_Stats(days, game_details_map, konsum_map):
                 file_name="all_game_stats.csv",
                 mime="text/csv"
             )
+            st.download_button(
+                "Download All Stats as CSV",
+                data=df.to_csv(index=False),
+                file_name="all_game_stats.csv",
+                mime="text/csv"
+            )
+
+            # New button for full sheet export
+            download_full_database()
     except Exception as e:
         st.error(f"Error downloading stats: {e}")
+
+def download_full_database():
+    try:
+        all_game_data = []
+
+        with st.spinner("Fetching ALL games from database..."):
+            # 👇 replace this with however you actually load game_ids from your Google Sheet
+            all_games = fetch_all_sheets_data()  # returns [{game_id, map_name, game_finished_at}, ...]
+
+            for game in sorted(all_games, key=lambda g: g["game_finished_at"], reverse=True):
+                game_id = game["game_id"]
+                map_name = game["map_name"]
+                game_details = fetch_game_details(game_id) or {}
+                konsum_data = get_cached_konsum(game_id) or {}
+
+                for player in game_details.get("playerStats", []):
+                    raw_name = player["name"]
+                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)
+                    if mapped_name not in ALLOWED_PLAYERS:
+                        continue
+
+                    player_data = {
+                        "Game": map_name,
+                        "Player": mapped_name,
+                        "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
+                    }
+
+                    # Add stats from STAT_MAP
+                    for display_name, stat_key in STAT_MAP.items():
+                        val = player.get(stat_key, 0)
+                        if stat_key == "tradeKillAttemptsPercentage":
+                            val = val * 100
+                        player_data[display_name] = val
+
+                    # Beer & Water
+                    player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
+                    player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
+
+                    all_game_data.append(player_data)
+
+        if all_game_data:
+            df_full = pd.DataFrame(all_game_data)
+
+            # optional: also compute BubbeRating per game, not just averages
+            trade_weight = 0.5
+            beer_weight = 0.9
+            df_full["BubbeRating"] = (
+                df_full["HLTV Rating"]
+                + df_full["HLTV Rating"] * (df_full["Beer"] * beer_weight)
+                + (df_full["TradeAttempts"] / 100) * trade_weight
+            ).round(2)
+
+            csv_buffer = StringIO()
+            df_full.to_csv(csv_buffer, index=False)
+            csv_data = csv_buffer.getvalue()
+
+            st.download_button(
+                label="Download Entire Database (CSV)",
+                data=csv_data,
+                file_name="all_game_stats_full.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("No game data found in the sheet.")
+
+    except Exception as e:
+        st.error(f"Error downloading full database: {e}")
 
 # Motivation Page
 def motivation_page():
