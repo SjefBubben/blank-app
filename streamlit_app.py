@@ -525,11 +525,11 @@ def download_full_database():
 
             # Ensure proper types
             games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
-
             # Loop through all games
             for _, game in games_df.sort_values("game_finished_at", ascending=False).iterrows():
                 game_id = game["game_id"]
                 map_name = game.get("map_name", "Unknown")
+                konsum_data=fetch_konsum_data_for_game(game_id)
 
                 details = fetch_game_details(game_id) or {}
                 konsum_data = konsum_df(game_id) or {}
