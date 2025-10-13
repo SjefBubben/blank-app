@@ -724,7 +724,7 @@ with col2:
         # When clicked, save the temp value to session_state and refresh
         st.session_state["days_value"] = temp_days
         refresh_all(st.session_state["days_value"])
-        missing_data_summary = get_missing_data_summary()
+    
         
 
 # Now use st.session_state["days_value"] in your app logic
