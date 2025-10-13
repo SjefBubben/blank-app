@@ -13,6 +13,7 @@ from DataInput import fetch_all_sheets_data, fetch_games_within_last_48_hours, f
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
 leetify_token = st.secrets["leetify"]["api_token"]
+discord_webhook = st.secrets["discord"]["webhook"]
 
 # List of SteamIDs to fetch games from
 #STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
@@ -38,6 +39,17 @@ def initialize_session_state():
         for game in st.session_state['cached_games']:
             st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
 
+def send_discord_notification(message: str):
+    """Send a message to Discord via webhook."""
+    if not discord_webhook:
+        return
+    try:
+        response = requests.post(discord_webhook, json={"content": message})
+        if response.status_code != 204:
+            st.warning(f"Failed to send Discord message ({response.status_code})")
+    except Exception as e:
+        st.warning(f"Error sending Discord message: {e}")
+
 # Manual refresh button functionality
 def refresh_all(days):
     # Clear cached data and refetch from Sheets
@@ -52,6 +64,7 @@ def refresh_all(days):
     new_games = fetch_new_games(days)
     print(len(new_games))
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+    
     
 
 # Remove caching decorators since we use session state
@@ -308,7 +321,15 @@ def input_data_page(days):
                 if name not in missing_data_summary:
                     missing_data_summary[name] = []
                 missing_data_summary[name].append(f"{map_name} ({formatted_time})")
+    # --- Build message for Discord ---
+    if missing_data_summary:
+        lines = ["⚠️ Players missing consumption data:"]
+        for player, games_list in missing_data_summary.items():
+            lines.append(f"- {player}: {', '.join(games_list)}")
+        discord_message = "\n".join(lines)
 
+        # Send Discord notification
+        send_discord_notification(discord_message)
     # --- Display global summary ---
     st.subheader("🧾 Missing Player Data")
     if missing_data_summary:
@@ -703,6 +724,7 @@ with col2:
         # When clicked, save the temp value to session_state and refresh
         st.session_state["days_value"] = temp_days
         refresh_all(st.session_state["days_value"])
+        missing_data_summary = get_missing_data_summary()
         
 
 # Now use st.session_state["days_value"] in your app logic
