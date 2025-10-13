@@ -263,44 +263,41 @@ def home_page(days):
 
     st.write(f"Total games: {len(games)}")
 
-# Input Data Page
+#input data
 def input_data_page(days):
     st.header("Input BubbeData")
 
-    games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
+    # --- Refresh Button (manual) ---
+    refresh_clicked = st.sidebar.button("🔄 Refresh Data")
+    if refresh_clicked:
+        # Refresh all cached data
+        refresh_all(days)
+        st.success("🔄 Data refreshed!")
 
+    # --- Fetch games after refresh or normal page load ---
+    games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
     if not games:
         st.warning("No games found in the selected timeframe.")
         return
 
-    # Fetch all details once + gather unique players
+    # Fetch all game details once + gather all unique players
     game_details_map = {}
     all_players = set()
-
     for game in games:
-        details = fetch_game_details(game.get("game_id"))
-        if not details:
-            continue
+        details = fetch_game_details(game.get("game_id")) or {}
         game_details_map[game["game_id"]] = details
-
         for p in details.get("playerStats", []):
             name = NAME_MAPPING.get(p["name"], p["name"])
             if name in ALLOWED_PLAYERS:
                 all_players.add(name)
 
-    # --- Compute global missing data summary ---
+    # --- Compute missing player data summary ---
     missing_data_summary = {}
-
     for game in games:
-        details = game_details_map.get(game["game_id"])
-        if not details:
-            continue
-
+        details = game_details_map.get(game["game_id"]) or {}
         konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
-
         map_name = game.get("map_name", "Unknown")
         game_finished_at = game.get("game_finished_at")
-
         if isinstance(game_finished_at, str):
             try:
                 game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -308,36 +305,36 @@ def input_data_page(days):
                 game_finished_at = datetime.now()
         elif not isinstance(game_finished_at, datetime):
             game_finished_at = datetime.now()
-
         formatted_time = game_finished_at.strftime("%d.%m.%y %H:%M")
 
         for p in details.get("playerStats", []):
             name = NAME_MAPPING.get(p["name"], p["name"])
             if name not in ALLOWED_PLAYERS:
                 continue
-
             player_data = konsum.get(name, {})
             if not player_data or player_data.get("beer") is None or player_data.get("water") is None:
                 if name not in missing_data_summary:
                     missing_data_summary[name] = []
                 missing_data_summary[name].append(f"{map_name} ({formatted_time})")
-    # --- Build message for Discord ---
-    if missing_data_summary:
+
+    # --- Send Discord message if refresh clicked and missing data exists ---
+    if refresh_clicked and missing_data_summary:
         lines = ["⚠️ Få det på rizzlers:"]
         for player, games_list in missing_data_summary.items():
             lines.append(f"- {player}: {', '.join(games_list)}")
         discord_message = "\n".join(lines)
+        send_discord_notification(discord_message)
+        st.info("🔔 Discord notification sent for missing players")
+    elif refresh_clicked:
+        st.success("✅ All players have filled in their consumption data for all games")
 
-        # Send Discord notification
-        if refresh_all():
-            send_discord_notification(discord_message)
-    # --- Display global summary ---
+    # --- Display missing data summary on the page ---
     st.subheader("🧾 Missing Player Data")
     if missing_data_summary:
         for player, games_list in missing_data_summary.items():
             st.markdown(f"**{player}** – {', '.join(games_list)}")
     else:
-        st.success("✅ All players have filled in their consumption data for all games.")
+        st.success("✅ All players have filled in their consumption data for all games")
 
     # --- Player filter ---
     selected_players = st.multiselect(
@@ -347,18 +344,13 @@ def input_data_page(days):
         help="Velg gooners du vil rizze."
     )
 
-    # --- Game listing ---
+    # --- Display each game with input forms ---
     for game in games:
-        details = game_details_map.get(game["game_id"])
-        if not details:
-            st.write(f"Skipping game {game.get('game_id', 'unknown')} - no details available.")
-            continue
-
+        details = game_details_map.get(game["game_id"], {})
         map_name = game.get("map_name", "Unknown")
         match_result = game.get("match_result", "Unknown")
-        scores = [game["score_team1"], game["score_team2"]]
+        scores = [game.get("score_team1", 0), game.get("score_team2", 0)]
         game_finished_at = game.get("game_finished_at")
-
         if isinstance(game_finished_at, str):
             try:
                 game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -368,48 +360,47 @@ def input_data_page(days):
             game_finished_at = datetime.now()
 
         label = f"{map_name} - {match_result} ({scores[0]}:{scores[1]}) - {game_finished_at.strftime('%d.%m.%y %H:%M')}"
-
         with st.expander(label):
             konsum = st.session_state.get(game["game_id"], fetch_konsum_data_for_game(game["game_id"]) or {})
             st.session_state[game["game_id"]] = konsum
 
             for p in details.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
-                if name in ALLOWED_PLAYERS:
-                    if selected_players and name not in selected_players:
-                        continue
+                if name not in ALLOWED_PLAYERS:
+                    continue
+                if selected_players and name not in selected_players:
+                    continue
 
-                    st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
+                st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
 
-                    prev_beer = konsum.get(name, {}).get("beer", 0)
-                    prev_water = konsum.get(name, {}).get("water", 0)
+                prev_beer = konsum.get(name, {}).get("beer", 0)
+                prev_water = konsum.get(name, {}).get("water", 0)
 
-                    # Keys
-                    beer_key = f"beer_input-{name}-{game['game_id']}"
-                    water_key = f"water_input-{name}-{game['game_id']}"
-                    save_key = f"save_button-{name}-{game['game_id']}"
+                beer_key = f"beer_input-{name}-{game['game_id']}"
+                water_key = f"water_input-{name}-{game['game_id']}"
 
-                    # Initialize session state if not present
-                    if beer_key not in st.session_state:
-                        st.session_state[beer_key] = str(prev_beer)
-                    if water_key not in st.session_state:
-                        st.session_state[water_key] = str(prev_water)
+                if beer_key not in st.session_state:
+                    st.session_state[beer_key] = str(prev_beer)
+                if water_key not in st.session_state:
+                    st.session_state[water_key] = str(prev_water)
 
-                    # Use a form to group inputs and button
-                    with st.form(key=f"form-{name}-{game['game_id']}"):
-                        col1, col2 = st.columns(2)
-                        beer = col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
-                        water = col2.text_input("Water", st.session_state[water_key], key=water_key)
+                # --- Player input form ---
+                with st.form(key=f"form-{name}-{game['game_id']}"):
+                    col1, col2 = st.columns(2)
+                    beer = col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
+                    water = col2.text_input("Water", st.session_state[water_key], key=water_key)
 
-                        submitted = st.form_submit_button("Save")
-                        if submitted:
-                            try:
-                                beer_val = int(beer)
-                                water_val = int(water)
-                                save_konsum_data(game["game_id"], name, beer_val, water_val)
-                                st.success(f"💾 Saved {name}: {beer_val} beer(s), {water_val} water(s)")
-                            except ValueError:
-                                st.error("❌ Please enter valid numbers for beer and water.")
+                    submitted = st.form_submit_button("Save")
+                    if submitted:
+                        try:
+                            beer_val = int(beer)
+                            water_val = int(water)
+                            save_konsum_data(game["game_id"], name, beer_val, water_val)
+                            st.session_state[game["game_id"]][name] = {"beer": beer_val, "water": water_val}
+                            st.success(f"💾 Saved {name}: {beer_val} beer(s), {water_val} water(s)")
+                        except ValueError:
+                            st.error("❌ Please enter valid numbers for beer and water.")
+
 
 # Stats Page
 STAT_MAP = {
