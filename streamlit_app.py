@@ -263,26 +263,51 @@ def input_data_page(days):
     # Fetch all details once + gather unique players
     game_details_map = {}
     all_players = set()
-    player_missing_data = {}
+    # --- Global missing data collection ---
+    missing_data_summary = {}
 
     for game in games:
-        details = fetch_game_details(game.get("game_id"))
+        details = game_details_map.get(game["game_id"])
         if not details:
             continue
-        game_details_map[game["game_id"]] = details
 
         konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
 
+        map_name = game.get("map_name", "Unknown")
+        game_finished_at = game.get("game_finished_at")
+
+        if isinstance(game_finished_at, str):
+            try:
+                game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            except ValueError:
+                game_finished_at = datetime.now()
+        elif not isinstance(game_finished_at, datetime):
+            game_finished_at = datetime.now()
+
+        formatted_time = game_finished_at.strftime("%d.%m.%y %H:%M")
+
         for p in details.get("playerStats", []):
             name = NAME_MAPPING.get(p["name"], p["name"])
-            if name in ALLOWED_PLAYERS:
-                all_players.add(name)
-                # Check if player missing consumption data
-                if name not in konsum or not konsum[name].get("beer") and not konsum[name].get("water"):
-                    player_missing_data[name] = True
-                else:
-                    player_missing_data.setdefault(name, False)
+            if name not in ALLOWED_PLAYERS:
+                continue
 
+            player_data = konsum.get(name, {})
+            if not player_data or player_data.get("beer") is None or player_data.get("water") is None:
+                if name not in missing_data_summary:
+                    missing_data_summary[name] = []
+                missing_data_summary[name].append(f"{map_name} ({formatted_time})")
+
+    # --- Display global summary ---
+    st.subheader("🧾 Missing Player Data")
+
+    if missing_data_summary:
+        for player, games_list in missing_data_summary.items():
+            st.markdown(f"**{player}** – {', '.join(games_list)}")
+    else:
+        st.success("✅ All players have filled in their consumption data for all games.")
+
+    
+    
     # Player filter
     selected_players = st.multiselect(
         "Spiller filtrering",
@@ -352,16 +377,7 @@ def input_data_page(days):
                                 st.success(f"💾 Saving {name}: {beer_val} beer(s), {water_val} water(s)")
                             except ValueError:
                                 st.error("❌ Please enter valid numbers for beer and water.")
-    # --- Global summary display ---
-    missing_players = [p for p, missing in player_missing_data.items() if missing]
 
-    st.subheader("🧾 Consumption Data Summary")
-
-    if missing_players:
-        st.warning("These players haven't filled in their data yet:")
-        st.write(", ".join(sorted(missing_players)))
-    else:
-        st.success("✅ All players have filled in their consumption data.")
 # Stats Page
 STAT_MAP = {
     "K/D Ratio": "kdRatio", "ADR": "dpr", "HLTV Rating": "hltvRating", "Reaction Time": "reactionTime", "TradeAttempts": "tradeKillAttemptsPercentage",
