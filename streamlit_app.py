@@ -323,13 +323,14 @@ def input_data_page(days):
                 missing_data_summary[name].append(f"{map_name} ({formatted_time})")
     # --- Build message for Discord ---
     if missing_data_summary:
-        lines = ["⚠️ Players missing consumption data:"]
+        lines = ["⚠️ Få det på rizzlers:"]
         for player, games_list in missing_data_summary.items():
             lines.append(f"- {player}: {', '.join(games_list)}")
         discord_message = "\n".join(lines)
 
         # Send Discord notification
-        send_discord_notification(discord_message)
+        if refresh_all():
+            send_discord_notification(discord_message)
     # --- Display global summary ---
     st.subheader("🧾 Missing Player Data")
     if missing_data_summary:
