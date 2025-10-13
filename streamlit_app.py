@@ -20,7 +20,7 @@ leetify_token = st.secrets["leetify"]["api_token"]
 # Player Name Mapping (unchanged)
 NAME_MAPPING = {
     "JimmyJimbob": "Jeprizz", "Jimmy": "Jeprizz", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
-    "Fakeface": "Birkle", "Killthem26": "Birkle", "Lars Olaf": "Tobrizz", "tobbelobben": "Tobrizz",
+    "Fakeface": "Birkle", "Killthem26": "Birkle", "KillBirk": "Birkle", "Lars Olaf": "Tobrizz", "tobbelobben": "Tobrizz",
     "Bøghild": "Borgle", "Nish": "Sandrizz", "Nishinosan": "Sandrizz", "Zohan": "Jorizz", "johlyn": "Jorizz"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
