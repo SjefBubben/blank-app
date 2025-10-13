@@ -263,18 +263,6 @@ def input_data_page(days):
     # Fetch all details once + gather unique players
     game_details_map = {}
     all_players = set()
-def input_data_page(days):
-    st.header("Input BubbeData")
-
-    games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
-
-    if not games:
-        st.warning("No games found in the selected timeframe.")
-        return
-
-    # Fetch all details once + gather unique players
-    game_details_map = {}
-    all_players = set()
 
     for game in games:
         details = fetch_game_details(game.get("game_id"))
@@ -396,8 +384,8 @@ def input_data_page(days):
                             try:
                                 beer_val = int(beer)
                                 water_val = int(water)
-                                async_save(game["game_id"], name, beer_val, water_val)
-                                st.success(f"💾 Saving {name}: {beer_val} beer(s), {water_val} water(s)")
+                                save_konsum_data(game["game_id"], name, beer_val, water_val)
+                                st.success(f"💾 Saved {name}: {beer_val} beer(s), {water_val} water(s)")
                             except ValueError:
                                 st.error("❌ Please enter valid numbers for beer and water.")
 
