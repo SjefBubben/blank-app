@@ -429,7 +429,15 @@ def load_all_stats(days):
     df = pd.DataFrame(rows)
 
     # --- Compute per-player averages ---
-    grouped = df.groupby("Player").mean(numeric_only=True).reset_index()
+    grouped = df.groupby("Player").agg({
+    "Beer": "sum",
+    "Water": "sum",
+    "K/D Ratio": "mean",
+    "ADR": "mean",
+    "HLTV Rating": "mean",
+    "Reaction Time": "mean",
+    "TradeAttempts": "mean"
+}).reset_index()
 
     # --- BubbeRating ---
     trade_weight = 0.5
@@ -470,8 +478,8 @@ def stats_page(days):
             "K/D Ratio": top3("K/D Ratio", False, ".2f"),
             "Reaction Time": top3("Reaction Time", True, ".2f"),
             "Trade (%)": top3("TradeAttempts", False, ".1f"),
-            "Beer": top3("Beer", False, ".2f"),
-            "Water": top3("Water", False, ".2f"),
+            "Beer": top3("Beer", False, ".0f"),
+            "Water": top3("Water", False, ".0f"),
             "BubbeRating": top3("BubbeRating", False, ".2f"),
         }
 
