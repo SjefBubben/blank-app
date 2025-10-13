@@ -268,7 +268,7 @@ def input_data_page(days):
     st.header("Input BubbeData")
 
     # --- Refresh Button (manual) ---
-    refresh_clicked = st.sidebar.button("🔄 Refresh Data")
+    refresh_clicked = st.sidebar.button("🔄 Refresh Data & Discordbaby")
     if refresh_clicked:
         # Refresh all cached data
         refresh_all(days)
