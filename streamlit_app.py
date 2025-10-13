@@ -470,8 +470,8 @@ def stats_page(days):
             "K/D Ratio": top3("K/D Ratio", False, ".2f"),
             "Reaction Time": top3("Reaction Time", True, ".2f"),
             "Trade (%)": top3("TradeAttempts", False, ".1f"),
-            "Beer": top3("Beer", False, ".0f"),
-            "Water": top3("Water", False, ".0f"),
+            "Beer": top3("Beer", False, ".2f"),
+            "Water": top3("Water", False, ".2f"),
             "BubbeRating": top3("BubbeRating", False, ".2f"),
         }
 
