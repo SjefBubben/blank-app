@@ -193,6 +193,7 @@ def fetch_profile(token, start_date, end_date, count=30):
         response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
         data = response.json()
+        print(data)
         
         return data
     except requests.RequestException as e:
