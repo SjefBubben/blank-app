@@ -28,7 +28,8 @@ def fetch_supabase_konsum_data():
             print("⚠️ No consumption data found in Supabase.")
             return pd.DataFrame()
         df = pd.DataFrame(response.data)
-        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+        # Ensure datetime is proper type
+        df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce')
         print(f"✅ Retrieved {len(df)} consumption entries from Supabase")
         return df
     except Exception as e:
@@ -43,8 +44,8 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
 
     # Copy and ensure proper datetime types
     games_df = games_df.copy()
-    games_df["game_finished_at"] = pd.to_datetime(games_df['game_finished_at'], errors="coerce")
-    games_df = games_df.dropna(subset=['game_finished_at'])
+    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
+    games_df = games_df.dropna(subset=["game_finished_at"])
     games_df = games_df.sort_values("game_finished_at")  # optional: sort once
 
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
