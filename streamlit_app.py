@@ -24,6 +24,7 @@ def fetch_supabase_konsum_data():
     """Fetch all player consumption data from Supabase."""
     try:
         response = supabase.table("entries").select("*").execute()
+        print("📝 Raw Supabase response:", response)
         if not response.data:
             print("⚠️ No consumption data found in Supabase.")
             return pd.DataFrame()
