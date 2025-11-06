@@ -81,7 +81,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
         water_val = existing["water"]
 
         # Add one unit per button press
-        if drink_type.lower() == "beer":
+        if drink_type.lower() == "øl":
             beer_val += 1
         elif drink_type.lower() == "water":
             water_val += 1
