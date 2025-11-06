@@ -41,6 +41,7 @@ def fetch_all_sheets_data():
 
 def save_game_data(game_id, map_name, match_result, score_team1, score_team2, game_finished_at):
     """Save game data to Sheets and update cached data."""
+    print(f"Saving game: {game_id}, {map_name}, {match_result}, {score1}-{score2}, {finished_at}")
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("games")
     
