@@ -47,50 +47,47 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
 
     games_df = games_df.copy()
     games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
-    konsum_df["timestamp"] = pd.to_datetime(konsum_df["timestamp"], errors="coerce")
+    konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
 
     saved_count = 0
 
     for _, row in konsum_df.iterrows():
-        player_name = row.get("player_name")
-        drink_type = row.get("drink_type")
-        units = int(row.get("units", 0))
-        ts = row.get("timestamp")
+        player_name = row.get("name")
+        drink_type = row.get("button")  # assume already standardized
+        ts = row.get("datetime")
 
-        if not player_name or pd.isna(ts):
+        if not player_name or not drink_type or pd.isna(ts):
             continue
 
-        # Find the latest game before this timestamp (within window)
+        # Find the latest game within the window
         mask = (games_df["game_finished_at"] <= ts) & (
             games_df["game_finished_at"] >= ts - timedelta(hours=hours_window)
         )
         nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
 
         if nearby_games.empty:
-            continue  # no game found close enough in time
+            continue
 
         game_id = nearby_games.iloc[0]["game_id"]
 
-        # Prepare record
+        # Aggregate existing consumption
         existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
         beer_val = existing["beer"]
         water_val = existing["water"]
 
         if drink_type.lower() == "beer":
-            beer_val += units
+            beer_val += 1
         elif drink_type.lower() == "water":
-            water_val += units
+            water_val += 1
 
-        # Save to Google Sheets
-        save_konsum_data(game_id, player_name, beer_val, water_val)
+        # Save only if there's actual consumption
+        if beer_val > 0 or water_val > 0:
+            save_konsum_data(game_id, player_name, beer_val, water_val)
 
         # Update cache
         if game_id not in st.session_state["cached_konsum"]:
             st.session_state["cached_konsum"][game_id] = {}
-        st.session_state["cached_konsum"][game_id][player_name] = {
-            "beer": beer_val,
-            "water": water_val
-        }
+        st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
 
         saved_count += 1
 
