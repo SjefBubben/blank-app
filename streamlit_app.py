@@ -38,44 +38,70 @@ def fetch_supabase_konsum_data():
     
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
+    """
+    Map Supabase konsum data to games and save to Google Sheets in batches.
+    - Sum all konsum entries per player/game.
+    - Update session_state cache.
+    """
     if konsum_df.empty or games_df.empty:
         print("⚠️ No data to map")
         return
 
+    # Ensure datetime types
     games_df = games_df.copy()
-    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"],utc=True, errors="coerce")
+    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
     games_df = games_df.dropna(subset=["game_finished_at"]).sort_values("game_finished_at")
-    games_df = games_df.sort_values("game_finished_at")
 
-    konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
+    konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], utc=True, errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
 
+    # Map Supabase bgdata to standardized drinks
+    konsum_df["drink_type"] = konsum_df["bgdata"].str.lower().map(lambda x: "beer" if "beer" in x else ("water" if "water" in x else None))
+    konsum_df = konsum_df.dropna(subset=["drink_type"])
+
+    # Group by player + game candidate using time window
     batch_updates = {}  # {game_id: {player_name: {"beer": x, "water": y}}}
     saved_count = 0
 
     for _, row in konsum_df.iterrows():
-        player_name = row.get("name")
-        drink_type = row.get("bgdata")
-        ts = row.get("datetime")
-        if not player_name or not drink_type or pd.isna(ts) or not isinstance(ts, pd.Timestamp):
+        player_name = row["name"]
+        drink_type = row["drink_type"]
+        ts = row["datetime"]
+
+        # Skip invalid
+        if not player_name or pd.isna(ts):
             continue
 
-        mask = (games_df["game_finished_at"] <= ts) & ( games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window) )
+        # Find matching game(s) within time window
+        mask = (games_df["game_finished_at"] <= ts) & (games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window))
         nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
         if nearby_games.empty:
             continue
 
         game_id = nearby_games.iloc[0]["game_id"]
 
-        # Existing konsum
-        existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
-        beer_val = existing["beer"] + (1 if drink_type.lower() == "beer" else 0)
-        water_val = existing["water"] + (1 if drink_type.lower() == "water" else 0)
+        # Initialize batch_updates dict
+        if game_id not in batch_updates:
+            batch_updates[game_id] = {}
 
-        batch_updates.setdefault(game_id, {})[player_name] = {"beer": beer_val, "water": water_val}
+        if player_name not in batch_updates[game_id]:
+            # Start with existing cached value if exists
+            existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
+            batch_updates[game_id][player_name] = existing.copy()
+
+        # Add current row's value
+        batch_updates[game_id][player_name][drink_type] += 1
         saved_count += 1
 
-    save_konsum_data(batch_updates)
+    if batch_updates:
+        save_konsum_data(batch_updates)  # Should handle batch write to Sheets
+        # Update session_state cache
+        for game_id, players in batch_updates.items():
+            if game_id not in st.session_state["cached_konsum"]:
+                st.session_state["cached_konsum"][game_id] = {}
+            for player_name, values in players.items():
+                st.session_state["cached_konsum"][game_id][player_name] = values
+
     print(f"✅ Saved {saved_count} Supabase konsum records to Sheets in batch.")
 
 
@@ -135,14 +161,17 @@ def refresh_all(days):
     for game in st.session_state['cached_games']:
         st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
     
-    konsum_df_supabase = fetch_supabase_konsum_data()
-    games_df = st.session_state["games_df"]
+    #only call supabase if new game
+    if new_games:
 
-    if not konsum_df_supabase.empty:
-        map_konsum_to_games_and_save(konsum_df_supabase, games_df)
-        print("✅ Supabase konsum synced to Google Sheets.")
-    else:
-        print("⚠️ No Supabase konsum data found to sync.")
+        konsum_df_supabase = fetch_supabase_konsum_data()
+        games_df = st.session_state["games_df"]
+
+        if not konsum_df_supabase.empty:
+            map_konsum_to_games_and_save(konsum_df_supabase, games_df)
+            print("✅ Supabase konsum synced to Google Sheets.")
+        else:
+            print("⚠️ No Supabase konsum data found to sync.")
     
 
 # Remove caching decorators since we use session state
@@ -342,7 +371,7 @@ def home_page(days):
 
 #input data
 def input_data_page(days):
-    st.header("🍺 Input BubbeData")
+    st.header("🍺 BubbeData")
 
     # --- Refresh Button (manual) ---
     refresh_clicked = st.sidebar.button("🔄 Refresh Data & Discordbaby")
