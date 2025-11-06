@@ -43,8 +43,9 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
         return
 
     games_df = games_df.copy()
-    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
+    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"],utc=True, errors="coerce")
     games_df = games_df.dropna(subset=["game_finished_at"]).sort_values("game_finished_at")
+    games_df = games_df.sort_values("game_finished_at")
 
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
@@ -54,7 +55,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
 
     for _, row in konsum_df.iterrows():
         player_name = row.get("name")
-        drink_type = row.get("button")
+        drink_type = row.get("bgdata")
         ts = row.get("datetime")
         if not player_name or not drink_type or pd.isna(ts) or not isinstance(ts, pd.Timestamp):
             continue
