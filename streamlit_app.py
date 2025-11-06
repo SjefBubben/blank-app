@@ -37,31 +37,31 @@ def fetch_supabase_konsum_data():
     
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
-    """
-    Match each Supabase consumption record to the most recent game (within hours_window)
-    and save to Google Sheets via save_konsum_data().
-    """
     if konsum_df.empty or games_df.empty:
         print("⚠️ No data to map")
         return
 
     games_df = games_df.copy()
+    # Convert to datetime, coerce errors
     games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
+    # Drop games without valid datetime
+    games_df = games_df.dropna(subset=["game_finished_at"])
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
+    konsum_df = konsum_df.dropna(subset=["datetime"])
 
     saved_count = 0
 
     for _, row in konsum_df.iterrows():
         player_name = row.get("name")
-        drink_type = row.get("button")  # assume already standardized
+        drink_type = row.get("button")
         ts = row.get("datetime")
 
         if not player_name or not drink_type or pd.isna(ts):
             continue
 
-        # Find the latest game within the window
+        # Only compare against valid game timestamps
         mask = (games_df["game_finished_at"] <= ts) & (
-            games_df["game_finished_at"] >= ts - timedelta(hours=hours_window)
+            games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window)
         )
         nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
 
@@ -70,7 +70,6 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
 
         game_id = nearby_games.iloc[0]["game_id"]
 
-        # Aggregate existing consumption
         existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
         beer_val = existing["beer"]
         water_val = existing["water"]
@@ -80,9 +79,8 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
         elif drink_type.lower() == "water":
             water_val += 1
 
-        # Save only if there's actual consumption
-        if beer_val > 0 or water_val > 0:
-            save_konsum_data(game_id, player_name, beer_val, water_val)
+        # Save to Sheets
+        save_konsum_data(game_id, player_name, beer_val, water_val)
 
         # Update cache
         if game_id not in st.session_state["cached_konsum"]:
