@@ -40,7 +40,7 @@ def fetch_all_sheets_data():
         return pd.DataFrame(), pd.DataFrame()
 
 def save_game_data(game_id, map_name, match_result, score_team1, score_team2, game_finished_at):
-    """Save game data to Sheets and update session_state."""
+    """Save a game to Sheets and update session_state immediately."""
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("games")
 
@@ -48,26 +48,24 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
     score_team2 = int(score_team2)
     print(f"Saving game: {game_id}, {map_name}, {match_result}, {score_team1}-{score_team2}, {game_finished_at}")
 
-    # Use existing games from session_state if available
     existing_games = st.session_state.get('games_df', pd.DataFrame())
+    if game_id in existing_games.get('game_id', []):
+        print(f"Game {game_id} already exists in session_state.")
+        return
 
-    # Get set of existing game IDs safely
-    existing_game_ids = set(existing_games['game_id'].values) if 'game_id' in existing_games else set()
+    # Append to Google Sheets
+    sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
 
-    if game_id not in existing_game_ids:
-        # Always append to sheet
-        sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
-        
-        # Always update session_state
-        new_row = pd.DataFrame([{
-            'game_id': game_id,
-            'map_name': map_name,
-            'match_result': match_result,
-            'score_team1': score_team1,
-            'score_team2': score_team2,
-            'game_finished_at': game_finished_at
-        }])
-        st.session_state['games_df'] = pd.concat([existing_games, new_row], ignore_index=True)
+    # Update session_state immediately
+    new_row = pd.DataFrame([{
+        'game_id': game_id,
+        'map_name': map_name,
+        'match_result': match_result,
+        'score_team1': score_team1,
+        'score_team2': score_team2,
+        'game_finished_at': game_finished_at
+    }])
+    st.session_state['games_df'] = pd.concat([existing_games, new_row], ignore_index=True)
 
 
 def save_konsum_data(game_id, player_name, beer, water_glasses):

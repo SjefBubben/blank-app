@@ -38,65 +38,55 @@ def fetch_supabase_konsum_data():
     
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
+    """
+    Map Supabase konsum data to games and save in batch.
+    Reduces Google Sheets writes: 1 append per player per game.
+    """
     if konsum_df.empty or games_df.empty:
         print("⚠️ No data to map")
         return
 
-    # Copy and ensure proper datetime types
     games_df = games_df.copy()
-    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
-    games_df = games_df.dropna(subset=["game_finished_at"])
-    games_df = games_df.sort_values("game_finished_at")  # optional: sort once
+    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
+    games_df = games_df.dropna(subset=["game_finished_at"]).sort_values("game_finished_at")
 
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
 
     saved_count = 0
 
-    for _, row in konsum_df.iterrows():
-        player_name = row.get("name")
-        drink_type = row.get("button")
-        ts = row.get("datetime")
+    for _, game in games_df.iterrows():
+        game_id = game["game_id"]
+        game_end = game["game_finished_at"]
 
-        # Skip invalid rows
-        if not player_name or not drink_type or pd.isna(ts):
-            continue
-        if not isinstance(ts, pd.Timestamp):
-            continue
+        # Filter Supabase konsum within the game window
+        mask = (konsum_df["datetime"] <= game_end) & \
+               (konsum_df["datetime"] >= game_end - pd.Timedelta(hours=hours_window))
+        game_konsum = konsum_df[mask]
 
-        # Find latest game within the window
-        mask = (games_df["game_finished_at"] <= ts) & (
-            games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window)
-        )
-        nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
-
-        if nearby_games.empty:
+        if game_konsum.empty:
             continue
 
-        game_id = nearby_games.iloc[0]["game_id"]
+        # Aggregate beer/water per player
+        summary = game_konsum.groupby("name").agg({"beer": "sum", "water": "sum"}).to_dict('index')
 
-        # Existing konsum
-        existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
-        beer_val = existing["beer"]
-        water_val = existing["water"]
+        for player_name, vals in summary.items():
+            existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
+            beer_val = existing["beer"] + vals.get("beer", 0)
+            water_val = existing["water"] + vals.get("water", 0)
 
-        # Add one unit per button press
-        if drink_type.lower() == "øl":
-            beer_val += 1
-        elif drink_type.lower() == "water":
-            water_val += 1
+            # Save one row per player per game
+            save_konsum_data(game_id, player_name, beer_val, water_val)
 
-        # Save to Sheets
-        save_konsum_data(game_id, player_name, beer_val, water_val)
+            # Update cache
+            if game_id not in st.session_state["cached_konsum"]:
+                st.session_state["cached_konsum"][game_id] = {}
+            st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
 
-        # Update cache
-        if game_id not in st.session_state["cached_konsum"]:
-            st.session_state["cached_konsum"][game_id] = {}
-        st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
+            saved_count += 1
 
-        saved_count += 1
+    print(f"✅ Saved {saved_count} konsum records in batch.")
 
-    print(f"✅ Saved {saved_count} Supabase konsum records to Sheets.")
 
 # List of SteamIDs to fetch games from
 #STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
@@ -213,24 +203,23 @@ def fetch_game_details(game_id):
         return None
 
 def fetch_new_games(days, token=leetify_token):
+    """Fetch new games from Leetify API and save them immediately."""
     new_games = []
     now = datetime.utcnow()
     start_date = now - timedelta(days=days)
 
     profile_data = fetch_profile(token, start_date, now)
-    
     if not profile_data or "games" not in profile_data:
         st.warning("No games found or invalid response")
         return []
 
-    # Use existing game IDs from session_state if available, else empty set
     existing_game_ids = set(st.session_state.get('games_df', pd.DataFrame()).get('game_id', []))
 
     for game in profile_data.get("games", []):
         game_id = game.get("id")
-        # Skip duplicates
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
             continue
+
         try:
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
             if finished_at > now - timedelta(days=days):
@@ -250,7 +239,7 @@ def fetch_new_games(days, token=leetify_token):
             st.error(f"Skipping game {game_id} due to error: {e}")
             continue
 
-    # Save new games to Sheets one by one, regardless of session_state
+    # Save all new games to Sheets and session_state
     for game in new_games:
         save_game_data(
             game["game_id"],
@@ -260,17 +249,10 @@ def fetch_new_games(days, token=leetify_token):
             game["scores"][1],
             game["game_finished_at"]
         )
-        # Fetch Supabase konsum and map to the new game
-        try:
-            konsum_df = fetch_supabase_konsum_data()
-            if konsum_df is not None and not konsum_df.empty:
-                map_konsum_to_games_and_save(konsum_df, st.session_state['games_df'])
-                print(f"✅ Supabase konsum synced for new game: {game['game_id']}")
-            else:
-                print("⚠️ No konsum data found in Supabase.")
-        except Exception as e:
-            print(f"❌ Error syncing Supabase konsum: {e}")
+
+    print(f"✅ {len(new_games)} new games fetched and saved.")
     return new_games
+
 
 def async_save(game_id, name, beer_val, water_val):
     # Run the actual save in a background thread
