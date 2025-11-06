@@ -69,6 +69,7 @@ def refresh_all(days):
 
     # Fetch new games from Leetify API
     new_games = fetch_new_games(days)
+    print(new_games)
 
     # ✅ Reload updated games_df from Sheets so UI sees new games
     st.session_state['games_df'], _ = fetch_all_sheets_data()
