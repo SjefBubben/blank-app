@@ -68,7 +68,7 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
     st.session_state['games_df'] = pd.concat([existing_games, new_row], ignore_index=True)
 
 
-def save_konsum_batch(konsum_updates):
+def save_konsum_data(konsum_updates):
     """
     konsum_updates: dict of {game_id: {player_name: {"beer": x, "water": y}}}
     Saves all konsum updates to Google Sheets in a minimal number of API calls.
