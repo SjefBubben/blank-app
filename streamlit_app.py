@@ -70,14 +70,7 @@ def refresh_all(days):
     new_games = fetch_new_games(days)
     print(len(new_games))
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
-    konsum_df_supabase = fetch_supabase_konsum_data()
     games_df = st.session_state["games_df"]
-
-    if not konsum_df_supabase.empty:
-        map_konsum_to_games_and_save(konsum_df_supabase, games_df)
-        print("✅ Supabase konsum synced to Google Sheets.")
-    else:
-        print("⚠️ No Supabase konsum data found to sync.")
     
     
 
