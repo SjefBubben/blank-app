@@ -214,6 +214,7 @@ def fetch_new_games(days, token=leetify_token):
     start_date = now - timedelta(days=days)
 
     profile_data = fetch_profile(token, start_date, now)
+    print(profile_data)
 
     if not profile_data or "games" not in profile_data:
         st.warning("No games found or invalid response")
