@@ -39,12 +39,16 @@ def fetch_supabase_konsum_data():
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
     """
-    Map Supabase konsum to games and save to Sheets.
+    Map Supabase konsum entries to the *closest previous* game and save to Sheets.
+    Skips entries that occur too long after a game or after the game end time.
     Avoids double-counting by checking existing IDs in session_state.
     """
+
     if konsum_df.empty or games_df.empty:
+        print("⚠️ No konsum or game data to map.")
         return
 
+    # --- Clean and prepare data ---
     games_df = games_df.copy()
     games_df['game_finished_at'] = pd.to_datetime(games_df['game_finished_at'], utc=True, errors='coerce')
     games_df = games_df.dropna(subset=['game_finished_at']).sort_values('game_finished_at')
@@ -52,49 +56,65 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
     konsum_df['datetime'] = pd.to_datetime(konsum_df['datetime'], utc=True, errors='coerce')
     konsum_df = konsum_df.dropna(subset=['datetime'])
 
-    # Map drink type
+    # --- Normalize drink types ---
     def map_drink(x):
         if isinstance(x, str):
             x = x.lower()
             if "beer" in x: return "beer"
             if "water" in x: return "water"
         return None
+
     konsum_df['drink_type'] = konsum_df['bgdata'].map(map_drink)
     konsum_df = konsum_df.dropna(subset=['drink_type'])
 
     batch_updates = {}
     saved_count = 0
+    skipped_count = 0
 
     for _, row in konsum_df.iterrows():
-        player_name = row['name']
-        drink_type = row['drink_type']
-        ts = row['datetime']
-        entry_id = row['id']
+        player_name = row.get('name')
+        drink_type = row.get('drink_type')
+        ts = row.get('datetime')
+        entry_id = row.get('id')
 
         if not player_name or pd.isna(ts) or pd.isna(entry_id):
             continue
 
-        mask = (games_df['game_finished_at'] <= ts) & (games_df['game_finished_at'] >= ts - pd.Timedelta(hours=hours_window))
-        nearby_games = games_df[mask].sort_values('game_finished_at', ascending=False)
-        if nearby_games.empty:
+        # --- Find the closest previous game ---
+        past_games = games_df[games_df['game_finished_at'] <= ts].sort_values('game_finished_at', ascending=False)
+
+        if past_games.empty:
+            # No previous game before this konsum timestamp
+            skipped_count += 1
             continue
 
-        game_id = nearby_games.iloc[0]['game_id']
+        closest_game = past_games.iloc[0]
+        game_id = closest_game['game_id']
+        game_time = closest_game['game_finished_at']
 
+        # --- Skip if konsum happened too long after the game ended ---
+        if ts - game_time > pd.Timedelta(hours=hours_window):
+            print(f"⏭️ Skipping konsum {entry_id} ({player_name}) — {round((ts - game_time).total_seconds()/3600, 1)}h after last game.")
+            skipped_count += 1
+            continue
+
+        # --- Initialize batch entry ---
         if game_id not in batch_updates:
             batch_updates[game_id] = {}
 
         if player_name not in batch_updates[game_id]:
-            existing = st.session_state['cached_konsum'].get(game_id, {}).get(player_name, {'beer':0,'water':0,'ids':[]})
+            existing = st.session_state['cached_konsum'].get(game_id, {}).get(player_name, {'beer': 0, 'water': 0, 'ids': []})
             existing.setdefault('ids', [])
             batch_updates[game_id][player_name] = existing.copy()
 
-        # Only count if ID not already present
+        # --- Only count if ID not already present ---
         if entry_id not in batch_updates[game_id][player_name]['ids']:
             batch_updates[game_id][player_name][drink_type] += 1
             batch_updates[game_id][player_name]['ids'].append(entry_id)
             saved_count += 1
+            print(f"✅ Linked konsum {entry_id} ({player_name}, {drink_type}) to game {game_id}")
 
+    # --- Save updates if any ---
     if batch_updates:
         save_konsum_data(batch_updates)
 
@@ -105,8 +125,8 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
             for player_name, values in players.items():
                 st.session_state['cached_konsum'][game_id][player_name] = values
 
-    print(f"✅ Saved {saved_count} new Supabase konsum records to Sheets")
-
+    print(f"✅ Saved {saved_count} new konsum records to Sheets.")
+    print(f"🚫 Skipped {skipped_count} konsum entries (no matching game or too far after).")
 
 
 
@@ -247,7 +267,7 @@ def fetch_new_games(days, token=leetify_token):
             continue
 
         try:
-            finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ") + timedelta(hours=1)
             if finished_at > now - timedelta(days=days):
                 finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
                 score = game.get("score", [0, 0])
