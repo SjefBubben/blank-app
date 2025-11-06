@@ -747,7 +747,7 @@ html_code = f"""
 st.markdown(html_code, unsafe_allow_html=True)
 
 #Start caching
-fetch_new_games(1, token=leetify_token)
+fetch_new_games(3, token=leetify_token)
 initialize_session_state()
 
 st.sidebar.title("Navigation")
