@@ -10,6 +10,7 @@ from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
 from DataInput import fetch_all_sheets_data, fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
+from supabaselink import map_konsum_to_games_and_save
 # API Endpoints
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
@@ -20,84 +21,6 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def fetch_supabase_konsum_data():
-    """Fetch all player consumption data from Supabase."""
-    try:
-        response = supabase.table("entries").select("*").execute()
-        print("📝 Raw Supabase response:", response)
-        if not response.data:
-            print("⚠️ No consumption data found in Supabase.")
-            return pd.DataFrame()
-        df = pd.DataFrame(response.data)
-        # Ensure datetime is proper type
-        df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce')
-        print(f"✅ Retrieved {len(df)} consumption entries from Supabase")
-        return df
-    except Exception as e:
-        print(f"⚠️ Supabase fetch error: {e}")
-        return pd.DataFrame()
-    
-
-def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
-    if konsum_df.empty or games_df.empty:
-        print("⚠️ No data to map")
-        return
-
-    # Copy and ensure proper datetime types
-    games_df = games_df.copy()
-    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
-    games_df = games_df.dropna(subset=["game_finished_at"])
-    games_df = games_df.sort_values("game_finished_at")  # optional: sort once
-
-    konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
-    konsum_df = konsum_df.dropna(subset=["datetime"])
-
-    saved_count = 0
-
-    for _, row in konsum_df.iterrows():
-        player_name = row.get("name")
-        drink_type = row.get("button")
-        ts = row.get("datetime")
-
-        # Skip invalid rows
-        if not player_name or not drink_type or pd.isna(ts):
-            continue
-        if not isinstance(ts, pd.Timestamp):
-            continue
-
-        # Find latest game within the window
-        mask = (games_df["game_finished_at"] <= ts) & (
-            games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window)
-        )
-        nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
-
-        if nearby_games.empty:
-            continue
-
-        game_id = nearby_games.iloc[0]["game_id"]
-
-        # Existing konsum
-        existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
-        beer_val = existing["beer"]
-        water_val = existing["water"]
-
-        # Add one unit per button press
-        if drink_type.lower() == "øl":
-            beer_val += 1
-        elif drink_type.lower() == "water":
-            water_val += 1
-
-        # Save to Sheets
-        save_konsum_data(game_id, player_name, beer_val, water_val)
-
-        # Update cache
-        if game_id not in st.session_state["cached_konsum"]:
-            st.session_state["cached_konsum"][game_id] = {}
-        st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
-
-        saved_count += 1
-
-    print(f"✅ Saved {saved_count} Supabase konsum records to Sheets.")
 
 # List of SteamIDs to fetch games from
 #STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
@@ -193,7 +116,6 @@ def fetch_profile(token, start_date, end_date, count=30):
         response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
         response.raise_for_status()
         data = response.json()
-        print(data)
         
         return data
     except requests.RequestException as e:
@@ -214,7 +136,8 @@ def fetch_new_games(days, token=leetify_token):
     start_date = now - timedelta(days=days)
 
     profile_data = fetch_profile(token, start_date, now)
-    print(profile_data)
+    
+
 
     if not profile_data or "games" not in profile_data:
         st.warning("No games found or invalid response")
@@ -226,7 +149,7 @@ def fetch_new_games(days, token=leetify_token):
         game_id = game.get("id")
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
             continue
-
+           
         try:
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
             if finished_at > now - timedelta(days=days):
@@ -247,9 +170,8 @@ def fetch_new_games(days, token=leetify_token):
             st.error(f"Skipping game {game_id} due to error: {e}")
             continue
 
-    # --- Save new games and sync Supabase konsum ---
+    # Save new games to Sheets
     for game in new_games:
-        # Save game to Sheets
         save_game_data(
             game["game_id"],
             game["map_name"],
@@ -258,17 +180,6 @@ def fetch_new_games(days, token=leetify_token):
             game["scores"][1],
             game["game_finished_at"]
         )
-
-        # Fetch Supabase konsum and map to the new game
-        try:
-            konsum_df = fetch_supabase_konsum_data()
-            if konsum_df is not None and not konsum_df.empty:
-                map_konsum_to_games_and_save(konsum_df, st.session_state['games_df'])
-                print(f"✅ Supabase konsum synced for new game: {game['game_id']}")
-            else:
-                print("⚠️ No konsum data found in Supabase.")
-        except Exception as e:
-            print(f"❌ Error syncing Supabase konsum: {e}")
 
     return new_games
 
@@ -369,20 +280,17 @@ def home_page(days):
 
 #input data
 def input_data_page(days):
-    st.header("🍺 Input BubbeData")
+    st.header("Input BubbeData")
 
     # --- Refresh Button (manual) ---
     refresh_clicked = st.sidebar.button("🔄 Refresh Data & Discordbaby")
     if refresh_clicked:
+        # Refresh all cached data
         refresh_all(days)
-        st.success("🔄 Data refreshed and Supabase konsum synced!")
+        st.success("🔄 Data refreshed!")
 
     # --- Fetch games after refresh or normal page load ---
-    games = sorted(
-        get_cached_games(days),
-        key=lambda x: x.get("game_finished_at", datetime.min),
-        reverse=True
-    )
+    games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
     if not games:
         st.warning("No games found in the selected timeframe.")
         return
@@ -398,21 +306,65 @@ def input_data_page(days):
             if name in ALLOWED_PLAYERS:
                 all_players.add(name)
 
-    # --- Player Filter ---
+    # --- Compute missing player data summary ---
+    missing_data_summary = {}
+    for game in games:
+        details = game_details_map.get(game["game_id"]) or {}
+        konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
+        map_name = game.get("map_name", "Unknown")
+        game_finished_at = game.get("game_finished_at")
+        if isinstance(game_finished_at, str):
+            try:
+                game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+            except ValueError:
+                game_finished_at = datetime.now()
+        elif not isinstance(game_finished_at, datetime):
+            game_finished_at = datetime.now()
+        formatted_time = game_finished_at.strftime("%d.%m.%y %H:%M")
+
+        for p in details.get("playerStats", []):
+            name = NAME_MAPPING.get(p["name"], p["name"])
+            if name not in ALLOWED_PLAYERS:
+                continue
+            player_data = konsum.get(name, {})
+            if not player_data or player_data.get("beer") is None or player_data.get("water") is None:
+                if name not in missing_data_summary:
+                    missing_data_summary[name] = []
+                missing_data_summary[name].append(f"{map_name} ({formatted_time})")
+
+    # --- Send Discord message if refresh clicked and missing data exists ---
+    if refresh_clicked and missing_data_summary:
+        lines = ["⚠️ Få det på rizzlers:"]
+        for player, games_list in missing_data_summary.items():
+            lines.append(f"- {player}: {', '.join(games_list)}")
+        discord_message = "\n".join(lines)
+        send_discord_notification(discord_message)
+        st.info("🔔 Discord notification sent for missing players")
+    elif refresh_clicked:
+        st.success("✅ All players have filled in their consumption data for all games")
+
+    # --- Display missing data summary on the page ---
+    st.subheader("🧾 Missing Player Data")
+    if missing_data_summary:
+        for player, games_list in missing_data_summary.items():
+            st.markdown(f"**{player}** – {', '.join(games_list)}")
+    else:
+        st.success("✅ All players have filled in their consumption data for all games")
+
+    # --- Player filter ---
     selected_players = st.multiselect(
-        "👥 Filter players",
+        "Spiller filtrering",
         options=sorted(all_players),
         default=[],
-        help="Select which gooners you want to view consumption for."
+        help="Velg gooners du vil rizze."
     )
 
-    # --- Display each game with synced konsum data ---
+    # --- Display each game with input forms ---
     for game in games:
         details = game_details_map.get(game["game_id"], {})
         map_name = game.get("map_name", "Unknown")
         match_result = game.get("match_result", "Unknown")
         scores = [game.get("score_team1", 0), game.get("score_team2", 0)]
-
         game_finished_at = game.get("game_finished_at")
         if isinstance(game_finished_at, str):
             try:
@@ -422,10 +374,10 @@ def input_data_page(days):
         elif not isinstance(game_finished_at, datetime):
             game_finished_at = datetime.now()
 
-        label = f"🗺️ {map_name} | {match_result} ({scores[0]}:{scores[1]}) | {game_finished_at.strftime('%d.%m.%y %H:%M')}"
-        with st.expander(label, expanded=False):
-            konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
-            df_display = []
+        label = f"{map_name} - {match_result} ({scores[0]}:{scores[1]}) - {game_finished_at.strftime('%d.%m.%y %H:%M')}"
+        with st.expander(label):
+            konsum = st.session_state.get(game["game_id"], fetch_konsum_data_for_game(game["game_id"]) or {})
+            st.session_state[game["game_id"]] = konsum
 
             for p in details.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
@@ -434,25 +386,35 @@ def input_data_page(days):
                 if selected_players and name not in selected_players:
                     continue
 
-                beer_val = konsum.get(name, {}).get("beer", 0)
-                water_val = konsum.get(name, {}).get("water", 0)
-                kd = p.get("kdRatio", 0)
-                adr = p.get("dpr", 0)
-                hltv = p.get("hltvRating", 0)
+                st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
 
-                df_display.append({
-                    "Player": name,
-                    "Beer": beer_val,
-                    "Water": water_val,
-                    "K/D": round(kd, 2) if isinstance(kd, (float, int)) else kd,
-                    "ADR": round(adr, 2) if isinstance(adr, (float, int)) else adr,
-                    "HLTV": round(hltv, 2) if isinstance(hltv, (float, int)) else hltv
-                })
+                prev_beer = konsum.get(name, {}).get("beer", 0)
+                prev_water = konsum.get(name, {}).get("water", 0)
 
-            if df_display:
-                st.dataframe(pd.DataFrame(df_display))
-            else:
-                st.info("No player consumption data available for this game yet.")
+                beer_key = f"beer_input-{name}-{game['game_id']}"
+                water_key = f"water_input-{name}-{game['game_id']}"
+
+                if beer_key not in st.session_state:
+                    st.session_state[beer_key] = str(prev_beer)
+                if water_key not in st.session_state:
+                    st.session_state[water_key] = str(prev_water)
+
+                # --- Player input form ---
+                with st.form(key=f"form-{name}-{game['game_id']}"):
+                    col1, col2 = st.columns(2)
+                    beer = col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
+                    water = col2.text_input("Water", st.session_state[water_key], key=water_key)
+
+                    submitted = st.form_submit_button("Save")
+                    if submitted:
+                        try:
+                            beer_val = int(beer)
+                            water_val = int(water)
+                            save_konsum_data(game["game_id"], name, beer_val, water_val)
+                            st.session_state[game["game_id"]][name] = {"beer": beer_val, "water": water_val}
+                            st.success(f"💾 Saved {name}: {beer_val} beer(s), {water_val} water(s)")
+                        except ValueError:
+                            st.error("❌ Please enter valid numbers for beer and water.")
 
 
 # Stats Page
@@ -748,9 +710,7 @@ html_code = f"""
 st.markdown(html_code, unsafe_allow_html=True)
 
 #Start caching
-
 initialize_session_state()
-fetch_new_games(3, token=leetify_token)
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Konsum", "📊 Stats", "🚽 Motivation"))
