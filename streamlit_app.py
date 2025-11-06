@@ -19,7 +19,84 @@ discord_webhook = st.secrets["discord"]["webhook"]
 SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+def fetch_supabase_konsum_data():
+    """Fetch all player consumption data from Supabase."""
+    try:
+        response = supabase.table("entries").select("*").execute()
+        print("📝 Raw Supabase response:", response)
+        if not response.data:
+            print("⚠️ No consumption data found in Supabase.")
+            return pd.DataFrame()
+        df = pd.DataFrame(response.data)
+        # Ensure datetime is proper type
+        df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce')
+        print(f"✅ Retrieved {len(df)} consumption entries from Supabase")
+        return df
+    except Exception as e:
+        print(f"⚠️ Supabase fetch error: {e}")
+        return pd.DataFrame()
+    
 
+def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
+    if konsum_df.empty or games_df.empty:
+        print("⚠️ No data to map")
+        return
+
+    # Copy and ensure proper datetime types
+    games_df = games_df.copy()
+    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
+    games_df = games_df.dropna(subset=["game_finished_at"])
+    games_df = games_df.sort_values("game_finished_at")  # optional: sort once
+
+    konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
+    konsum_df = konsum_df.dropna(subset=["datetime"])
+
+    saved_count = 0
+
+    for _, row in konsum_df.iterrows():
+        player_name = row.get("name")
+        drink_type = row.get("button")
+        ts = row.get("datetime")
+
+        # Skip invalid rows
+        if not player_name or not drink_type or pd.isna(ts):
+            continue
+        if not isinstance(ts, pd.Timestamp):
+            continue
+
+        # Find latest game within the window
+        mask = (games_df["game_finished_at"] <= ts) & (
+            games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window)
+        )
+        nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
+
+        if nearby_games.empty:
+            continue
+
+        game_id = nearby_games.iloc[0]["game_id"]
+
+        # Existing konsum
+        existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
+        beer_val = existing["beer"]
+        water_val = existing["water"]
+
+        # Add one unit per button press
+        if drink_type.lower() == "øl":
+            beer_val += 1
+        elif drink_type.lower() == "water":
+            water_val += 1
+
+        # Save to Sheets
+        save_konsum_data(game_id, player_name, beer_val, water_val)
+
+        # Update cache
+        if game_id not in st.session_state["cached_konsum"]:
+            st.session_state["cached_konsum"][game_id] = {}
+        st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
+
+        saved_count += 1
+
+    print(f"✅ Saved {saved_count} Supabase konsum records to Sheets.")
 
 # List of SteamIDs to fetch games from
 #STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
