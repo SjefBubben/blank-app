@@ -47,7 +47,6 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
     score_team1 = int(score_team1)
     score_team2 = int(score_team2)
     print(f"Saving game: {game_id}, {map_name}, {match_result}, {score_team1}-{score_team2}, {game_finished_at}")
-    sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
     existing_games = st.session_state.get('games_df', pd.DataFrame())
     if not existing_games.empty and game_id not in existing_games['game_id'].values:
         sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
