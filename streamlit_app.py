@@ -154,6 +154,14 @@ def refresh_all(days):
     for game in st.session_state['cached_games']:
         st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
     
+    konsum_df_supabase = fetch_supabase_konsum_data()
+    games_df = st.session_state["games_df"]
+
+    if not konsum_df_supabase.empty:
+        map_konsum_to_games_and_save(konsum_df_supabase, games_df)
+        print("✅ Supabase konsum synced to Google Sheets.")
+    else:
+        print("⚠️ No Supabase konsum data found to sync.")
     
 
 # Remove caching decorators since we use session state
@@ -252,7 +260,16 @@ def fetch_new_games(days, token=leetify_token):
             game["scores"][1],
             game["game_finished_at"]
         )
-
+        # Fetch Supabase konsum and map to the new game
+        try:
+            konsum_df = fetch_supabase_konsum_data()
+            if konsum_df is not None and not konsum_df.empty:
+                map_konsum_to_games_and_save(konsum_df, st.session_state['games_df'])
+                print(f"✅ Supabase konsum synced for new game: {game['game_id']}")
+            else:
+                print("⚠️ No konsum data found in Supabase.")
+        except Exception as e:
+            print(f"❌ Error syncing Supabase konsum: {e}")
     return new_games
 
 def async_save(game_id, name, beer_val, water_val):
@@ -352,17 +369,20 @@ def home_page(days):
 
 #input data
 def input_data_page(days):
-    st.header("Input BubbeData")
+    st.header("🍺 Input BubbeData")
 
     # --- Refresh Button (manual) ---
     refresh_clicked = st.sidebar.button("🔄 Refresh Data & Discordbaby")
     if refresh_clicked:
-        # Refresh all cached data
         refresh_all(days)
-        st.success("🔄 Data refreshed!")
+        st.success("🔄 Data refreshed and Supabase konsum synced!")
 
     # --- Fetch games after refresh or normal page load ---
-    games = sorted(get_cached_games(days), key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
+    games = sorted(
+        get_cached_games(days),
+        key=lambda x: x.get("game_finished_at", datetime.min),
+        reverse=True
+    )
     if not games:
         st.warning("No games found in the selected timeframe.")
         return
@@ -378,65 +398,21 @@ def input_data_page(days):
             if name in ALLOWED_PLAYERS:
                 all_players.add(name)
 
-    # --- Compute missing player data summary ---
-    missing_data_summary = {}
-    for game in games:
-        details = game_details_map.get(game["game_id"]) or {}
-        konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
-        map_name = game.get("map_name", "Unknown")
-        game_finished_at = game.get("game_finished_at")
-        if isinstance(game_finished_at, str):
-            try:
-                game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
-            except ValueError:
-                game_finished_at = datetime.now()
-        elif not isinstance(game_finished_at, datetime):
-            game_finished_at = datetime.now()
-        formatted_time = game_finished_at.strftime("%d.%m.%y %H:%M")
-
-        for p in details.get("playerStats", []):
-            name = NAME_MAPPING.get(p["name"], p["name"])
-            if name not in ALLOWED_PLAYERS:
-                continue
-            player_data = konsum.get(name, {})
-            if not player_data or player_data.get("beer") is None or player_data.get("water") is None:
-                if name not in missing_data_summary:
-                    missing_data_summary[name] = []
-                missing_data_summary[name].append(f"{map_name} ({formatted_time})")
-
-    # --- Send Discord message if refresh clicked and missing data exists ---
-    if refresh_clicked and missing_data_summary:
-        lines = ["⚠️ Få det på rizzlers:"]
-        for player, games_list in missing_data_summary.items():
-            lines.append(f"- {player}: {', '.join(games_list)}")
-        discord_message = "\n".join(lines)
-        send_discord_notification(discord_message)
-        st.info("🔔 Discord notification sent for missing players")
-    elif refresh_clicked:
-        st.success("✅ All players have filled in their consumption data for all games")
-
-    # --- Display missing data summary on the page ---
-    st.subheader("🧾 Missing Player Data")
-    if missing_data_summary:
-        for player, games_list in missing_data_summary.items():
-            st.markdown(f"**{player}** – {', '.join(games_list)}")
-    else:
-        st.success("✅ All players have filled in their consumption data for all games")
-
-    # --- Player filter ---
+    # --- Player Filter ---
     selected_players = st.multiselect(
-        "Spiller filtrering",
+        "👥 Filter players",
         options=sorted(all_players),
         default=[],
-        help="Velg gooners du vil rizze."
+        help="Select which gooners you want to view consumption for."
     )
 
-    # --- Display each game with input forms ---
+    # --- Display each game with synced konsum data ---
     for game in games:
         details = game_details_map.get(game["game_id"], {})
         map_name = game.get("map_name", "Unknown")
         match_result = game.get("match_result", "Unknown")
         scores = [game.get("score_team1", 0), game.get("score_team2", 0)]
+
         game_finished_at = game.get("game_finished_at")
         if isinstance(game_finished_at, str):
             try:
@@ -446,10 +422,10 @@ def input_data_page(days):
         elif not isinstance(game_finished_at, datetime):
             game_finished_at = datetime.now()
 
-        label = f"{map_name} - {match_result} ({scores[0]}:{scores[1]}) - {game_finished_at.strftime('%d.%m.%y %H:%M')}"
-        with st.expander(label):
-            konsum = st.session_state.get(game["game_id"], fetch_konsum_data_for_game(game["game_id"]) or {})
-            st.session_state[game["game_id"]] = konsum
+        label = f"🗺️ {map_name} | {match_result} ({scores[0]}:{scores[1]}) | {game_finished_at.strftime('%d.%m.%y %H:%M')}"
+        with st.expander(label, expanded=False):
+            konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
+            df_display = []
 
             for p in details.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
@@ -458,35 +434,26 @@ def input_data_page(days):
                 if selected_players and name not in selected_players:
                     continue
 
-                st.markdown(f"**{name}** - K/D: {p['kdRatio']}, ADR: {p['dpr']}, HLTV: {p['hltvRating']}")
+                beer_val = konsum.get(name, {}).get("beer", 0)
+                water_val = konsum.get(name, {}).get("water", 0)
+                kd = p.get("kdRatio", 0)
+                adr = p.get("dpr", 0)
+                hltv = p.get("hltvRating", 0)
 
-                prev_beer = konsum.get(name, {}).get("beer", 0)
-                prev_water = konsum.get(name, {}).get("water", 0)
+                df_display.append({
+                    "Player": name,
+                    "Beer": beer_val,
+                    "Water": water_val,
+                    "K/D": round(kd, 2) if isinstance(kd, (float, int)) else kd,
+                    "ADR": round(adr, 2) if isinstance(adr, (float, int)) else adr,
+                    "HLTV": round(hltv, 2) if isinstance(hltv, (float, int)) else hltv
+                })
 
-                beer_key = f"beer_input-{name}-{game['game_id']}"
-                water_key = f"water_input-{name}-{game['game_id']}"
+            if df_display:
+                st.dataframe(pd.DataFrame(df_display))
+            else:
+                st.info("No player consumption data available for this game yet.")
 
-                if beer_key not in st.session_state:
-                    st.session_state[beer_key] = str(prev_beer)
-                if water_key not in st.session_state:
-                    st.session_state[water_key] = str(prev_water)
-
-                # --- Player input form ---
-                with st.form(key=f"form-{name}-{game['game_id']}"):
-                    col1, col2 = st.columns(2)
-                    beer = col1.text_input("Beers", st.session_state[beer_key], key=beer_key)
-                    water = col2.text_input("Water", st.session_state[water_key], key=water_key)
-
-                    submitted = st.form_submit_button("Save")
-                    if submitted:
-                        try:
-                            beer_val = int(beer)
-                            water_val = int(water)
-                            save_konsum_data(game["game_id"], name, beer_val, water_val)
-                            st.session_state[game["game_id"]][name] = {"beer": beer_val, "water": water_val}
-                            st.success(f"💾 Saved {name}: {beer_val} beer(s), {water_val} water(s)")
-                        except ValueError:
-                            st.error("❌ Please enter valid numbers for beer and water.")
 
 
 # Stats Page
