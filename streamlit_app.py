@@ -10,7 +10,6 @@ from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
 from DataInput import fetch_all_sheets_data, fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
-from supabaselink import map_konsum_to_games_and_save
 # API Endpoints
 PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
 GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
