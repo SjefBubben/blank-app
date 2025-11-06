@@ -110,7 +110,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
 
 # Player Name Mapping
 NAME_MAPPING = {
-    "JimmyJimbob": "Jeprizz", "Jimmy": "Jeprizz", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
+    "JimmyJimbob": "Jepprizz", "Jimmy": "Jepprizz", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
     "Fakeface": "Birkle", "Killthem26": "Birkle", "KillBirk": "Birkle", "Lars Olaf": "Tobrizz", "tobbelobben": "Tobrizz",
     "Bøghild": "Borgle", "Nish": "Sandrizz", "Nishinosan": "Sandrizz", "Zohan": "Jorizz", "johlyn": "Jorizz"
 }
