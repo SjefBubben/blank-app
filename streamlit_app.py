@@ -41,11 +41,12 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
         print("⚠️ No data to map")
         return
 
+    # Copy and ensure proper datetime types
     games_df = games_df.copy()
-    # Convert to datetime, coerce errors
     games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
-    # Drop games without valid datetime
     games_df = games_df.dropna(subset=["game_finished_at"])
+    games_df = games_df.sort_values("game_finished_at")  # optional: sort once
+
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
 
@@ -56,10 +57,13 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
         drink_type = row.get("button")
         ts = row.get("datetime")
 
+        # Skip invalid rows
         if not player_name or not drink_type or pd.isna(ts):
             continue
+        if not isinstance(ts, pd.Timestamp):
+            continue
 
-        # Only compare against valid game timestamps
+        # Find latest game within the window
         mask = (games_df["game_finished_at"] <= ts) & (
             games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window)
         )
@@ -70,10 +74,12 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
 
         game_id = nearby_games.iloc[0]["game_id"]
 
+        # Existing konsum
         existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
         beer_val = existing["beer"]
         water_val = existing["water"]
 
+        # Add one unit per button press
         if drink_type.lower() == "beer":
             beer_val += 1
         elif drink_type.lower() == "water":
