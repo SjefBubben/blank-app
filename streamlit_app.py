@@ -33,16 +33,31 @@ NAME_MAPPING = {
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
 # Initialize session state with all Sheets data
-def initialize_session_state():
+def initialize_session_state(days=2):
     if 'initialized' not in st.session_state:
         st.session_state['initialized'] = True
-        # Fetch all Sheets data once
+
+        # 1️⃣ Load whatever is in Sheets
         games_df, konsum_df = fetch_all_sheets_data()
         st.session_state['games_df'] = games_df
         st.session_state['konsum_df'] = konsum_df
-        st.session_state['cached_games'] = fetch_games_within_last_48_hours()
+
+        # 2️⃣ Fetch new games from Leetify
+        new_games = fetch_new_games(days)
+
+        # 3️⃣ Combine Sheets + new games
+        cached_games = fetch_games_within_last_48_hours()  # from Sheets
+        cached_games_ids = {g["game_id"] for g in cached_games}
+
+        # Only append new games that aren't already in Sheets
+        for game in new_games:
+            if game["game_id"] not in cached_games_ids:
+                cached_games.append(game)
+
+        # 4️⃣ Store in session_state
+        st.session_state['cached_games'] = cached_games
         st.session_state['cached_konsum'] = {}
-        for game in st.session_state['cached_games']:
+        for game in cached_games:
             st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
 
 def send_discord_notification(message: str):
