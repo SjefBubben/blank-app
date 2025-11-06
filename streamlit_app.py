@@ -66,11 +66,13 @@ def refresh_all(days):
     st.session_state['cached_konsum'] = {}
     for game in st.session_state['cached_games']:
         st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
+
     # Fetch new games from Leetify API
     new_games = fetch_new_games(days)
-    print(len(new_games))
+
+    # ✅ Reload updated games_df from Sheets so UI sees new games
+    st.session_state['games_df'], _ = fetch_all_sheets_data()
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
-    games_df = st.session_state["games_df"]
     
     
 
