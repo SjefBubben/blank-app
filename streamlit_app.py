@@ -28,7 +28,7 @@ def fetch_supabase_konsum_data():
             print("⚠️ No consumption data found in Supabase.")
             return pd.DataFrame()
         df = pd.DataFrame(response.data)
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
         print(f"✅ Retrieved {len(df)} consumption entries from Supabase")
         return df
     except Exception as e:
