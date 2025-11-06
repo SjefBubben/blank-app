@@ -747,8 +747,9 @@ html_code = f"""
 st.markdown(html_code, unsafe_allow_html=True)
 
 #Start caching
-fetch_new_games(3, token=leetify_token)
+
 initialize_session_state()
+fetch_new_games(3, token=leetify_token)
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Konsum", "📊 Stats", "🚽 Motivation"))
