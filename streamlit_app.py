@@ -37,7 +37,7 @@ def fetch_supabase_konsum_data():
         return pd.DataFrame()
     
 
-def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
+def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
     """
     Map Supabase konsum to games and save to Sheets.
     Avoids double-counting by checking existing IDs in session_state.
