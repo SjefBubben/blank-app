@@ -70,8 +70,18 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
 
 def save_konsum_data(konsum_updates):
     """
-    konsum_updates: dict of {game_id: {player_name: {"beer": x, "water": y}}}
-    Saves all konsum updates to Google Sheets in a minimal number of API calls.
+    Konsum updates with ID tracking:
+    konsum_updates: dict of {
+        game_id: {
+            player_name: {
+                "beer": x,
+                "water": y,
+                "ids": [list of Supabase entry IDs]
+            }
+        }
+    }
+
+    Saves all konsum updates to Google Sheets with minimal API calls.
     """
     if not konsum_updates:
         return
@@ -88,34 +98,37 @@ def save_konsum_data(konsum_updates):
         for player_name, counts in players.items():
             beer = counts["beer"]
             water = counts["water"]
+            ids_list = counts.get("ids", [])
+            ids_str = f"({','.join(map(str, ids_list))})"
 
             # Check if this row already exists
             matching_rows = existing_konsum[
                 (existing_konsum['game_id'] == game_id) &
                 (existing_konsum['player_name'] == player_name)
             ]
-            
+
             if not matching_rows.empty:
                 # Update in Sheets via batch update range later
                 row_index = matching_rows.index[0] + 2  # 1-based indexing + header
-                updated_indices.append((row_index, beer, water))
+                updated_indices.append((row_index, beer, water, ids_str))
                 # Update cached DataFrame
-                existing_konsum.loc[matching_rows.index, ['beer', 'water']] = [beer, water]
+                existing_konsum.loc[matching_rows.index, ['beer', 'water', 'IDs']] = [beer, water, ids_str]
             else:
                 # Collect for batch append
-                rows_to_append.append([game_id, player_name, beer, water])
-                # Also update cached DataFrame
+                rows_to_append.append([game_id, player_name, beer, water, ids_str])
+                # Update cached DataFrame
                 new_row = pd.DataFrame([{
                     'game_id': game_id,
                     'player_name': player_name,
                     'beer': beer,
-                    'water': water
+                    'water': water,
+                    'IDs': ids_str
                 }])
                 existing_konsum = pd.concat([existing_konsum, new_row], ignore_index=True)
 
     # Perform all updates first
-    for row_index, beer, water in updated_indices:
-        sheet.update(f'C{row_index}:D{row_index}', [[beer, water]])
+    for row_index, beer, water, ids_str in updated_indices:
+        sheet.update(f'C{row_index}:E{row_index}', [[beer, water, ids_str]])
 
     # Perform batch append
     for row in rows_to_append:
@@ -124,6 +137,7 @@ def save_konsum_data(konsum_updates):
     # Save back to session_state once
     st.session_state['konsum_df'] = existing_konsum
     print(f"✅ Konsum batch saved: {len(updated_indices)} updates, {len(rows_to_append)} new rows")
+
 
 
 def fetch_games_within_last_48_hours(days=2):
