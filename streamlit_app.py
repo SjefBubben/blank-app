@@ -59,8 +59,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
         if not player_name or not drink_type or pd.isna(ts) or not isinstance(ts, pd.Timestamp):
             continue
 
-        mask = (games_df["game_finished_at"] <= ts) & \
-               (games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window))
+        mask = (games_df["game_finished_at"] <= ts) & ( games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window) )
         nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
         if nearby_games.empty:
             continue
@@ -69,13 +68,13 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
 
         # Existing konsum
         existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
-        beer_val = existing["beer"] + (1 if drink_type.lower() == "øl" else 0)
+        beer_val = existing["beer"] + (1 if drink_type.lower() == "beer" else 0)
         water_val = existing["water"] + (1 if drink_type.lower() == "water" else 0)
 
         batch_updates.setdefault(game_id, {})[player_name] = {"beer": beer_val, "water": water_val}
         saved_count += 1
 
-    save_konsum_batch(batch_updates)
+    save_konsum_data(batch_updates)
     print(f"✅ Saved {saved_count} Supabase konsum records to Sheets in batch.")
 
 
