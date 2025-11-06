@@ -41,13 +41,12 @@ def fetch_all_sheets_data():
 
 def save_game_data(game_id, map_name, match_result, score_team1, score_team2, game_finished_at):
     """Save game data to Sheets and update cached data."""
-    print(f"Saving game: {game_id}, {map_name}, {match_result}, {score1}-{score2}, {finished_at}")
     client = connect_to_gsheet()
     sheet = client.open_by_key(SHEET_ID).worksheet("games")
     
     score_team1 = int(score_team1)
     score_team2 = int(score_team2)
-    
+    print(f"Saving game: {game_id}, {map_name}, {match_result}, {score_team1}-{score_team2}, {game_finished_at}")
     existing_games = st.session_state.get('games_df', pd.DataFrame())
     if not existing_games.empty and game_id not in existing_games['game_id'].values:
         sheet.append_row([game_id, map_name, match_result, score_team1, score_team2, game_finished_at])
