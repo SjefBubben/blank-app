@@ -39,10 +39,9 @@ def fetch_supabase_konsum_data():
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
     """
-    Map Supabase konsum entries to games and save to Google Sheets.
-    - Aggregates all new konsum entries per player/game.
-    - Tracks Supabase entry IDs to avoid double-counting.
-    - Updates session_state cache and Sheets in batches.
+    Map Supabase konsum data to games and save to Google Sheets in batches.
+    - Each entry has a unique 'id'.
+    - Avoid double-counting by checking existing 'IDs' in the sheet.
     """
     if konsum_df.empty or games_df.empty:
         print("⚠️ No data to map")
@@ -56,7 +55,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], utc=True, errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
 
-    # Map bgdata to drink type
+    # Map drink type
     def map_drink(x):
         if isinstance(x, str):
             x = x.lower()
@@ -69,20 +68,19 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
     konsum_df["drink_type"] = konsum_df["bgdata"].map(map_drink)
     konsum_df = konsum_df.dropna(subset=["drink_type"])
 
-    # Prepare batch_updates dict
-    batch_updates = {}  # {game_id: {player_name: {"beer": x, "water": y, "ids": [id1, id2]}}}
+    batch_updates = {}  # {game_id: {player_name: {"beer": x, "water": y, "ids": [...]}}}
     saved_count = 0
 
     for _, row in konsum_df.iterrows():
         player_name = row["name"]
         drink_type = row["drink_type"]
         ts = row["datetime"]
-        entry_id = row.get("id")  # Supabase entry ID
+        entry_id = row["id"]
 
-        if not player_name or pd.isna(ts) or not entry_id:
+        if not player_name or pd.isna(ts) or pd.isna(entry_id):
             continue
 
-        # Find game(s) within time window
+        # Find matching game(s) within time window
         mask = (games_df["game_finished_at"] <= ts) & (games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window))
         nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
         if nearby_games.empty:
@@ -91,30 +89,33 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
         game_id = nearby_games.iloc[0]["game_id"]
 
         # Initialize batch_updates dict
-        batch_updates.setdefault(game_id, {})
-        if player_name not in batch_updates[game_id]:
-            # Start with existing cached value if exists
-            existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0, "ids": []})
-            batch_updates[game_id][player_name] = existing.copy()
-            batch_updates[game_id][player_name]["ids"] = list(existing.get("ids", []))
+        if game_id not in batch_updates:
+            batch_updates[game_id] = {}
 
-        # Only add if entry ID is new
+        if player_name not in batch_updates[game_id]:
+            # Start with existing cached value
+            existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0, "ids": []})
+            # Ensure 'ids' is a list
+            existing.setdefault("ids", [])
+            batch_updates[game_id][player_name] = existing.copy()
+
+        # Only count this entry if its ID is not already in the row
         if entry_id not in batch_updates[game_id][player_name]["ids"]:
             batch_updates[game_id][player_name][drink_type] += 1
             batch_updates[game_id][player_name]["ids"].append(entry_id)
             saved_count += 1
 
-    # Save all updates in batch
     if batch_updates:
         save_konsum_data(batch_updates)
-
         # Update session_state cache
         for game_id, players in batch_updates.items():
-            st.session_state["cached_konsum"].setdefault(game_id, {})
+            if game_id not in st.session_state["cached_konsum"]:
+                st.session_state["cached_konsum"][game_id] = {}
             for player_name, values in players.items():
                 st.session_state["cached_konsum"][game_id][player_name] = values
 
     print(f"✅ Saved {saved_count} new Supabase konsum records to Sheets in batch.")
+
 
 
 

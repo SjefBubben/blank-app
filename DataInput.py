@@ -70,18 +70,8 @@ def save_game_data(game_id, map_name, match_result, score_team1, score_team2, ga
 
 def save_konsum_data(konsum_updates):
     """
-    Konsum updates with ID tracking:
-    konsum_updates: dict of {
-        game_id: {
-            player_name: {
-                "beer": x,
-                "water": y,
-                "ids": [list of Supabase entry IDs]
-            }
-        }
-    }
-
-    Saves all konsum updates to Google Sheets with minimal API calls.
+    konsum_updates: dict of {game_id: {player_name: {"beer": x, "water": y, "ids": [id1, id2]}}}
+    Saves all konsum updates to Google Sheets in a minimal number of API calls.
     """
     if not konsum_updates:
         return
@@ -98,15 +88,17 @@ def save_konsum_data(konsum_updates):
         for player_name, counts in players.items():
             beer = counts["beer"]
             water = counts["water"]
-            ids_list = counts.get("ids", [])
-            ids_str = f"({','.join(map(str, ids_list))})"
+            ids = counts.get("ids", [])
+
+            # Convert list to tuple string for sheet
+            ids_str = f"({', '.join(map(str, ids))})" if ids else ""
 
             # Check if this row already exists
             matching_rows = existing_konsum[
                 (existing_konsum['game_id'] == game_id) &
                 (existing_konsum['player_name'] == player_name)
             ]
-
+            
             if not matching_rows.empty:
                 # Update in Sheets via batch update range later
                 row_index = matching_rows.index[0] + 2  # 1-based indexing + header
@@ -116,7 +108,7 @@ def save_konsum_data(konsum_updates):
             else:
                 # Collect for batch append
                 rows_to_append.append([game_id, player_name, beer, water, ids_str])
-                # Update cached DataFrame
+                # Also update cached DataFrame
                 new_row = pd.DataFrame([{
                     'game_id': game_id,
                     'player_name': player_name,
@@ -137,6 +129,7 @@ def save_konsum_data(konsum_updates):
     # Save back to session_state once
     st.session_state['konsum_df'] = existing_konsum
     print(f"✅ Konsum batch saved: {len(updated_indices)} updates, {len(rows_to_append)} new rows")
+
 
 
 
