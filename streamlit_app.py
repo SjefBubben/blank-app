@@ -23,7 +23,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def fetch_supabase_konsum_data():
     """Fetch all player consumption data from Supabase."""
     try:
-        response = supabase.table("player_consumption").select("*").execute()
+        response = supabase.table("entries").select("*").execute()
         if not response.data:
             print("⚠️ No consumption data found in Supabase.")
             return pd.DataFrame()
