@@ -37,22 +37,11 @@ def initialize_session_state(days=2):
     if 'initialized' not in st.session_state:
         st.session_state['initialized'] = True
 
-        # 1️⃣ Load whatever is in Sheets
         games_df, konsum_df = fetch_all_sheets_data()
         st.session_state['games_df'] = games_df
         st.session_state['konsum_df'] = konsum_df
 
-        # 2️⃣ Fetch new games from Leetify
-        new_games = fetch_new_games(days)
-
-        # 3️⃣ Combine Sheets + new games
         cached_games = fetch_games_within_last_48_hours()  # from Sheets
-        cached_games_ids = {g["game_id"] for g in cached_games}
-
-        # Only append new games that aren't already in Sheets
-        for game in new_games:
-            if game["game_id"] not in cached_games_ids:
-                cached_games.append(game)
 
         # 4️⃣ Store in session_state
         st.session_state['cached_games'] = cached_games
@@ -73,22 +62,20 @@ def send_discord_notification(message: str):
 
 # Manual refresh button functionality
 def refresh_all(days):
-    # Clear cached data and refetch from Sheets
+    # 1️⃣ Fetch new games from Leetify API
+    new_games = fetch_new_games(days)
+    print(f"New games fetched: {len(new_games)}")
+
+    # 2️⃣ Reload everything from Sheets
     games_df, konsum_df = fetch_all_sheets_data()
     st.session_state['games_df'] = games_df
     st.session_state['konsum_df'] = konsum_df
+
+    # 3️⃣ Update cached games
     st.session_state['cached_games'] = fetch_games_within_last_48_hours()
     st.session_state['cached_konsum'] = {}
     for game in st.session_state['cached_games']:
         st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
-
-    # Fetch new games from Leetify API
-    new_games = fetch_new_games(days)
-    print(new_games)
-
-    # ✅ Reload updated games_df from Sheets so UI sees new games
-    st.session_state['games_df'], _ = fetch_all_sheets_data()
-    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
     
     
 
@@ -147,19 +134,18 @@ def fetch_new_games(days, token=leetify_token):
 
     profile_data = fetch_profile(token, start_date, now)
     
-
-
     if not profile_data or "games" not in profile_data:
         st.warning("No games found or invalid response")
         return []
 
-    existing_game_ids = set(st.session_state['games_df']['game_id']) if not st.session_state['games_df'].empty else set()
+    # Use existing game IDs from session_state if available, else empty set
+    existing_game_ids = set(st.session_state.get('games_df', pd.DataFrame()).get('game_id', []))
 
     for game in profile_data.get("games", []):
         game_id = game.get("id")
+        # Skip duplicates
         if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
             continue
-           
         try:
             finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")
             if finished_at > now - timedelta(days=days):
@@ -174,13 +160,12 @@ def fetch_new_games(days, token=leetify_token):
                     "scores": score,
                     "game_finished_at": finished_at_str
                 }
-
                 new_games.append(new_game)
         except (ValueError, KeyError) as e:
             st.error(f"Skipping game {game_id} due to error: {e}")
             continue
 
-    # Save new games to Sheets
+    # Save new games to Sheets one by one, regardless of session_state
     for game in new_games:
         save_game_data(
             game["game_id"],
