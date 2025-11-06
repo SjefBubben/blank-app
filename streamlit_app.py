@@ -48,6 +48,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
         return
 
     # Ensure datetime types
+    # Ensure datetime types
     games_df = games_df.copy()
     games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
     games_df = games_df.dropna(subset=["game_finished_at"]).sort_values("game_finished_at")
@@ -55,8 +56,17 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], utc=True, errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
 
-    # Map Supabase bgdata to standardized drinks
-    konsum_df["drink_type"] = konsum_df["bgdata"].str.lower().map(lambda x: "beer" if "beer" in x else ("water" if "water" in x else None))
+    # Safely map bgdata to drink_type
+    def map_drink(x):
+        if isinstance(x, str):
+            x = x.lower()
+            if "beer" in x:
+                return "beer"
+            elif "water" in x:
+                return "water"
+        return None
+
+    konsum_df["drink_type"] = konsum_df["bgdata"].map(map_drink)
     konsum_df = konsum_df.dropna(subset=["drink_type"])
 
     # Group by player + game candidate using time window
