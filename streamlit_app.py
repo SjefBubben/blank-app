@@ -38,7 +38,7 @@ def fetch_supabase_konsum_data():
         return pd.DataFrame()
     
 
-def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=12):
+def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
     if konsum_df.empty or games_df.empty:
         print("⚠️ No data to map")
         return
