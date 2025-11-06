@@ -38,55 +38,65 @@ def fetch_supabase_konsum_data():
     
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=62):
-    """
-    Map Supabase konsum data to games and save in batch.
-    Reduces Google Sheets writes: 1 append per player per game.
-    """
     if konsum_df.empty or games_df.empty:
         print("⚠️ No data to map")
         return
 
+    # Copy and ensure proper datetime types
     games_df = games_df.copy()
-    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
-    games_df = games_df.dropna(subset=["game_finished_at"]).sort_values("game_finished_at")
+    games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
+    games_df = games_df.dropna(subset=["game_finished_at"])
+    games_df = games_df.sort_values("game_finished_at")  # optional: sort once
 
     konsum_df["datetime"] = pd.to_datetime(konsum_df["datetime"], errors="coerce")
     konsum_df = konsum_df.dropna(subset=["datetime"])
 
     saved_count = 0
 
-    for _, game in games_df.iterrows():
-        game_id = game["game_id"]
-        game_end = game["game_finished_at"]
+    for _, row in konsum_df.iterrows():
+        player_name = row.get("name")
+        drink_type = row.get("button")
+        ts = row.get("datetime")
 
-        # Filter Supabase konsum within the game window
-        mask = (konsum_df["datetime"] <= game_end) & \
-               (konsum_df["datetime"] >= game_end - pd.Timedelta(hours=hours_window))
-        game_konsum = konsum_df[mask]
-
-        if game_konsum.empty:
+        # Skip invalid rows
+        if not player_name or not drink_type or pd.isna(ts):
+            continue
+        if not isinstance(ts, pd.Timestamp):
             continue
 
-        # Aggregate beer/water per player
-        summary = game_konsum.groupby("name").agg({"beer": "sum", "water": "sum"}).to_dict('index')
+        # Find latest game within the window
+        mask = (games_df["game_finished_at"] <= ts) & (
+            games_df["game_finished_at"] >= ts - pd.Timedelta(hours=hours_window)
+        )
+        nearby_games = games_df[mask].sort_values("game_finished_at", ascending=False)
 
-        for player_name, vals in summary.items():
-            existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
-            beer_val = existing["beer"] + vals.get("beer", 0)
-            water_val = existing["water"] + vals.get("water", 0)
+        if nearby_games.empty:
+            continue
 
-            # Save one row per player per game
-            save_konsum_data(game_id, player_name, beer_val, water_val)
+        game_id = nearby_games.iloc[0]["game_id"]
 
-            # Update cache
-            if game_id not in st.session_state["cached_konsum"]:
-                st.session_state["cached_konsum"][game_id] = {}
-            st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
+        # Existing konsum
+        existing = st.session_state["cached_konsum"].get(game_id, {}).get(player_name, {"beer": 0, "water": 0})
+        beer_val = existing["beer"]
+        water_val = existing["water"]
 
-            saved_count += 1
+        # Add one unit per button press
+        if drink_type.lower() == "øl":
+            beer_val += 1
+        elif drink_type.lower() == "water":
+            water_val += 1
 
-    print(f"✅ Saved {saved_count} konsum records in batch.")
+        # Save to Sheets
+        save_konsum_data(game_id, player_name, beer_val, water_val)
 
+        # Update cache
+        if game_id not in st.session_state["cached_konsum"]:
+            st.session_state["cached_konsum"][game_id] = {}
+        st.session_state["cached_konsum"][game_id][player_name] = {"beer": beer_val, "water": water_val}
+
+        saved_count += 1
+
+    print(f"✅ Saved {saved_count} Supabase konsum records to Sheets.")
 
 # List of SteamIDs to fetch games from
 #STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
