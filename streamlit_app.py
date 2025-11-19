@@ -82,11 +82,15 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
 
     # --- Normalize drink types ---
     def map_drink(x):
-        if isinstance(x, str):
-            x = x.lower()
-            if "beer" in x: return "beer"
-            if "water" in x: return "water"
+        if not isinstance(x, str):
+            return None
+        x_lower = x.lower()
+        if "beer" in x_lower:
+            return "beer"
+        elif "water" in x_lower:
+            return "water"
         return None
+
 
     konsum_df['drink_type'] = konsum_df['bgdata'].map(map_drink)
     konsum_df = konsum_df.dropna(subset=['drink_type'])
