@@ -29,21 +29,35 @@ NAME_MAPPING = {
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
 def fetch_supabase_konsum_data():
-    """Fetch all player consumption data from Supabase."""
+    """Fetch all player consumption data from Supabase without filtering by allowed players."""
     try:
         response = supabase.table("entries").select("*").execute()
         print("📝 Raw Supabase response:", response)
         if not response.data:
             print("⚠️ No consumption data found in Supabase.")
             return pd.DataFrame()
+
         df = pd.DataFrame(response.data)
-        # Ensure datetime is proper type
-        df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce')
-        print(f"✅ Retrieved {len(df)} consumption entries from Supabase")
+        print(f"Columns in Supabase data: {df.columns}")
+        print("Sample rows:\n", df.head())
+
+        # Ensure datetime column is parsed correctly
+        if 'datetime' in df.columns:
+            df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce')
+        else:
+            print("⚠️ No 'datetime' column found in Supabase data")
+            df['datetime'] = pd.NaT
+
+        # Keep the original name column for mapping later if needed
+        df.rename(columns={'name': 'player_name'}, inplace=True)
+
+        print(f"✅ Retrieved {len(df)} konsum entries from Supabase")
         return df
+
     except Exception as e:
         print(f"⚠️ Supabase fetch error: {e}")
         return pd.DataFrame()
+
     
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
