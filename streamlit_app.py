@@ -62,10 +62,9 @@ def fetch_supabase_konsum_data():
 
 def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
     """
-    Map Supabase konsum entries to the *closest previous* game and save to Sheets.
-    Skips entries that occur too long after a game or after the game end time.
+    Map Supabase konsum entries to the closest previous game and save to Sheets.
     Avoids double-counting by checking existing IDs in session_state.
-    Only processes players defined in NAME_MAPPING / ALLOWED_PLAYERS.
+    Works with all players, no filtering by ALLOWED_PLAYERS.
     """
 
     if konsum_df.empty or games_df.empty:
@@ -92,10 +91,9 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
     konsum_df['drink_type'] = konsum_df['bgdata'].map(map_drink)
     konsum_df = konsum_df.dropna(subset=['drink_type'])
 
-    # --- Map player names and filter only allowed players ---
-    konsum_df['player_name'] = konsum_df['name'].map(NAME_MAPPING)
-    konsum_df = konsum_df[konsum_df['player_name'].isin(ALLOWED_PLAYERS)]
-    konsum_df = konsum_df.dropna(subset=['player_name'])
+    # --- Map player names using NAME_MAPPING, but keep all if not mapped ---
+    konsum_df['player_name_mapped'] = konsum_df['player_name'].map(NAME_MAPPING)
+    konsum_df['player_name_mapped'] = konsum_df['player_name_mapped'].fillna(konsum_df['player_name'])
 
     # --- Prepare batch updates ---
     batch_updates = {}
@@ -103,7 +101,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
     skipped_count = 0
 
     for _, row in konsum_df.iterrows():
-        player_name = row.get('player_name')
+        player_name = row.get('player_name_mapped')
         drink_type = row.get('drink_type')
         ts = row.get('datetime')
         entry_id = row.get('id')
@@ -113,7 +111,6 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
 
         # --- Find the closest previous game ---
         past_games = games_df[games_df['game_finished_at'] <= ts].sort_values('game_finished_at', ascending=False)
-
         if past_games.empty:
             skipped_count += 1
             continue
@@ -124,7 +121,6 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
 
         # --- Skip if konsum happened too long after the game ended ---
         if ts - game_time > pd.Timedelta(hours=hours_window):
-            print(f"⏭️ Skipping konsum {entry_id} ({player_name}) — {round((ts - game_time).total_seconds()/3600, 1)}h after last game.")
             skipped_count += 1
             continue
 
@@ -142,12 +138,10 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
             batch_updates[game_id][player_name][drink_type] += 1
             batch_updates[game_id][player_name]['ids'].append(entry_id)
             saved_count += 1
-            print(f"✅ Linked konsum {entry_id} ({player_name}, {drink_type}) to game {game_id}")
 
     # --- Save updates if any ---
     if batch_updates:
         save_konsum_data(batch_updates)
-
         # Update session_state cache
         for game_id, players in batch_updates.items():
             if game_id not in st.session_state['cached_konsum']:
@@ -156,7 +150,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
                 st.session_state['cached_konsum'][game_id][player_name] = values
 
     print(f"✅ Saved {saved_count} new konsum records to Sheets.")
-    print(f"🚫 Skipped {skipped_count} konsum entries (no matching game, too far after, or unrecognized player).")
+    print(f"🚫 Skipped {skipped_count} konsum entries (no matching game, too far after).")
 
 
 
