@@ -214,11 +214,17 @@ if st.sidebar.button("🍺 Force Sync Supabase Øl"):
     synced = sync_supabase_to_sheets()
     st.success(f"Synkronisert {synced} nye øl fra Supabase! 🍺")
 
-# Recent games
+# Recent games 
 games_list = []
 if not st.session_state.games_df.empty:
     df = st.session_state.games_df.copy()
-    df['game_finished_at'] = pd.to_datetime(df['game_finished_at'], utc=True)
+
+    # THIS IS THE FIX: coerce errors instead of crashing
+    df['game_finished_at'] = pd.to_datetime(df['game_finished_at'], utc=True, errors='coerce')
+
+    # Drop rows where date parsing failed (old broken data)
+    df = df.dropna(subset=['game_finished_at'])
+
     cutoff = datetime.utcnow() - timedelta(days=st.session_state.days)
     recent = df[df['game_finished_at'] >= cutoff].sort_values('game_finished_at', ascending=False)
     games_list = recent.to_dict('records')
