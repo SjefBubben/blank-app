@@ -152,7 +152,7 @@ def fetch_new_games(days):
     headers = {"Authorization": f"Bearer {leetify_token}"}
     end = datetime.utcnow()
     start = end - timedelta(days=days)
-    filters = {"currentPeriod": {"start": start.isoformat()+"Z", "end": end.isoformat()+"Z", "count": 50}}
+    filters = {"currentPeriod": {"start": start.isoformat()+"Z", "end": end.isoformat()+"Z", "count": 5}}
 
     try:
         resp = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
@@ -219,7 +219,7 @@ if not st.session_state.games_df.empty:
     if not df.empty:
         cutoff = datetime.now(timezone.utc) - timedelta(days=st.session_state.days)
         games_list = df[df["game_finished_at"] >= cutoff] \
-                      .sort_values("game_finished_at", ascending=False) \
+                      .sort_values("game_finished_at", ascending=True) \
                       .to_dict("records")
 
 # ========================= UI =========================
