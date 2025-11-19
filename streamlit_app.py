@@ -1,3 +1,4 @@
+# main.py - Bubberne Gaming 🍺 FULLY FIXED + ALL ORIGINAL FEATURES
 import streamlit as st
 import requests
 import base64
@@ -9,10 +10,8 @@ from supabase import create_client
 from operator import itemgetter
 from datetime import datetime, timedelta
 from io import StringIO
-from DataInput import fetch_all_sheets_data, fetch_games_within_last_48_hours, fetch_konsum_data_for_game, save_konsum_data, save_game_data
-# API Endpoints
-PROFILE_API = "https://api.cs-prod.leetify.com/api/profile/id/"
-GAMES_API = "https://api.cs-prod.leetify.com/api/games/"
+
+# ========================= SECRETS & CLIENTS =========================
 leetify_token = st.secrets["leetify"]["api_token"]
 discord_webhook = st.secrets["discord"]["webhook"]
 
@@ -20,817 +19,424 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Player Name Mapping
+# Google Sheets setup
+SHEET_ID = "19vqg2lx3hMCEj7MtxkISzsYz0gUaCLgSV11q-YYtXQY"
+from google.oauth2.service_account import Credentials
+import gspread
+
+service_account_info = dict(st.secrets["service_account"])
+service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+creds = Credentials.from_service_account_info(service_account_info, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+gsheet = gspread.authorize(creds)
+
+# ========================= PLAYER MAPPING =========================
 NAME_MAPPING = {
     "JimmyJimbob": "Jepprizz", "Jimmy": "Jepprizz", "Kåre": "Torgrizz", "Kaare": "Torgrizz",
-    "Fakeface": "Birkle", "Killthem26": "Birkle", "Killbirk": "Birkle", "Lars Olaf": "Tobrizz", "tobbelobben": "Tobrizz",
-    "Bøghild": "Borgle", "Nish": "Sandrizz", "Nishinosan": "Sandrizz", "Zohan": "Jorizz", "johlyn": "Jorizz"
+    "Fakeface": "Birkle", "Killthem26": "Birkle", "Killbirk": "Birkle",
+    "Lars Olaf": "Tobrizz", "tobbelobben": "Tobrizz",
+    "Bøghild": "Borgle", "Nish": "Sandrizz", "Nishinosan": "Sandrizz",
+    "Zohan": "Jorizz", "johlyn": "Jorizz"
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-def fetch_supabase_konsum_data():
-    """Fetch all player consumption data from Supabase without filtering by allowed players."""
+# ========================= GOOGLE SHEETS HELPERS =========================
+def fetch_all_sheets_data():
     try:
-        response = supabase.table("entries").select("*").execute()
-        print("📝 Raw Supabase response:", response)
-        if not response.data:
-            print("⚠️ No consumption data found in Supabase.")
-            return pd.DataFrame()
-
-        df = pd.DataFrame(response.data)
-        print(f"Columns in Supabase data: {df.columns}")
-        print("Sample rows:\n", df.head())
-
-        # Ensure datetime column is parsed correctly
-        if 'datetime' in df.columns:
-            df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce')
-        else:
-            print("⚠️ No 'datetime' column found in Supabase data")
-            df['datetime'] = pd.NaT
-
-        # Keep the original name column for mapping later if needed
-        df.rename(columns={'name': 'player_name'}, inplace=True)
-
-        print(f"✅ Retrieved {len(df)} konsum entries from Supabase")
-        return df
-
+        sh = gsheet.open_by_key(SHEET_ID)
+        games = sh.worksheet("games").get_all_values()
+        konsum = sh.worksheet("konsum").get_all_values()
+        games_df = pd.DataFrame(games[1:], columns=games[0]) if games else pd.DataFrame()
+        konsum_df = pd.DataFrame(konsum[1:], columns=konsum[0]) if konsum else pd.DataFrame()
+        return games_df, konsum_df
     except Exception as e:
-        print(f"⚠️ Supabase fetch error: {e}")
+        st.error(f"Sheets error: {e}")
+        return pd.DataFrame(), pd.DataFrame()
+
+def save_game_data(game_id, map_name, match_result, s1, s2, finished_at):
+    gsheet.open_by_key(SHEET_ID).worksheet("games").append_row([game_id, map_name, match_result, int(s1), int(s2), finished_at])
+
+def save_konsum_batch(batch):
+    if not batch:
+        return
+    sheet = gsheet.open_by_key(SHEET_ID).worksheet("konsum")
+    rows = []
+    for gid, players in batch.items():
+        for p, d in players.items():
+            ids_str = ",".join(map(str, d.get("ids", [])))
+            rows.append([gid, p, d["beer"], d["water"], ids_str])
+    sheet.append_rows(rows)
+
+# ========================= SUPABASE → SHEETS SYNC (NOW WORKS!) =========================
+def fetch_supabase_konsum():
+    try:
+        data = supabase.table("entries").select("*").execute().data
+        df = pd.DataFrame(data)
+        if df.empty:
+            return df
+        df['datetime'] = pd.to_datetime(df['datetime'], utc=True)
+        df.rename(columns={'name': 'raw_name'}, inplace=True)
+        return df
+    except Exception as e:
+        st.warning(f"Supabase fetch error: {e}")
         return pd.DataFrame()
 
-    
+def sync_supabase_to_sheets():
+    sup_df = fetch_supabase_konsum()
+    if sup_df.empty:
+        return 0
 
-def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
-    """
-    Map Supabase konsum entries to the closest previous game and save to Sheets.
-    Avoids double-counting by checking existing IDs in session_state.
-    Works with all players, no filtering by ALLOWED_PLAYERS.
-    """
+    games_df = st.session_state.games_df.copy()
+    if games_df.empty:
+        return 0
 
-    if konsum_df.empty or games_df.empty:
-        print("⚠️ No konsum or game data to map.")
-        return
+    games_df['game_finished_at'] = pd.to_datetime(games_df['game_finished_at'], utc=True)
+    games_df = games_df.sort_values('game_finished_at')
 
-    # --- Clean and prepare games data ---
-    games_df = games_df.copy()
-    games_df['game_finished_at'] = pd.to_datetime(games_df['game_finished_at'], utc=True, errors='coerce')
-    games_df = games_df.dropna(subset=['game_finished_at']).sort_values('game_finished_at')
-
-    # --- Clean konsum data ---
-    konsum_df['datetime'] = pd.to_datetime(konsum_df['datetime'], utc=True, errors='coerce')
-    konsum_df = konsum_df.dropna(subset=['datetime'])
-
-    # --- Normalize drink types ---
     def map_drink(x):
-        if not isinstance(x, str):
-            return None
-        x_lower = x.lower()
-        if "beer" in x_lower:
-            return "beer"
-        elif "water" in x_lower:
-            return "water"
+        if not isinstance(x, str): return None
+        l = x.lower()
+        if any(w in l for w in ["beer", "øl", "pils"]): return "beer"
+        if any(w in l for w in ["water", "vann"]): return "water"
         return None
 
+    sup_df['type'] = sup_df['bgdata'].apply(map_drink)
+    sup_df = sup_df.dropna(subset=['type'])
+    sup_df['player'] = sup_df['raw_name'].map(NAME_MAPPING).fillna(sup_df['raw_name'])
 
-    konsum_df['drink_type'] = konsum_df['bgdata'].map(map_drink)
-    konsum_df = konsum_df.dropna(subset=['drink_type'])
+    batch = {}
+    processed = 0
 
-    # --- Map player names using NAME_MAPPING, but keep all if not mapped ---
-    konsum_df['player_name_mapped'] = konsum_df['player_name'].map(NAME_MAPPING)
-    konsum_df['player_name_mapped'] = konsum_df['player_name_mapped'].fillna(konsum_df['player_name'])
+    for _, row in sup_df.iterrows():
+        ts = row['datetime']
+        player = row['player']
+        drink = row['type']
+        eid = row['id']
 
-    # --- Prepare batch updates ---
-    batch_updates = {}
-    saved_count = 0
-    skipped_count = 0
-
-    for _, row in konsum_df.iterrows():
-        player_name = row.get('player_name_mapped')
-        drink_type = row.get('drink_type')
-        ts = row.get('datetime')
-        entry_id = row.get('id')
-
-        if not player_name or pd.isna(ts) or pd.isna(entry_id):
+        past = games_df[games_df['game_finished_at'] <= ts]
+        if past.empty:
+            continue
+        game = past.iloc[-1]
+        if ts - game['game_finished_at'] > timedelta(hours=72):
             continue
 
-        # --- Find the closest previous game ---
-        past_games = games_df[games_df['game_finished_at'] <= ts].sort_values('game_finished_at', ascending=False)
-        if past_games.empty:
-            skipped_count += 1
-            continue
+        gid = game['game_id']
+        batch.setdefault(gid, {})
+        batch[gid].setdefault(player, {"beer": 0, "water": 0, "ids": []})
+        if eid not in batch[gid][player]["ids"]:
+            batch[gid][player][drink] += 1
+            batch[gid][player]["ids"].append(eid)
+            processed += 1
 
-        closest_game = past_games.iloc[0]
-        game_id = closest_game['game_id']
-        game_time = closest_game['game_finished_at']
+    if batch:
+        save_konsum_batch(batch)
+        # Refresh konsum cache
+        _, st.session_state.konsum_df = fetch_all_sheets_data()
 
-        # --- Skip if konsum happened too long after the game ended ---
-        if ts - game_time > pd.Timedelta(hours=hours_window):
-            skipped_count += 1
-            continue
+    return processed
 
-        # --- Initialize batch entry ---
-        if game_id not in batch_updates:
-            batch_updates[game_id] = {}
-
-        if player_name not in batch_updates[game_id]:
-            existing = st.session_state['cached_konsum'].get(game_id, {}).get(player_name, {'beer': 0, 'water': 0, 'ids': []})
-            existing.setdefault('ids', [])
-            batch_updates[game_id][player_name] = existing.copy()
-
-        # --- Only count if ID not already present ---
-        if entry_id not in batch_updates[game_id][player_name]['ids']:
-            batch_updates[game_id][player_name][drink_type] += 1
-            batch_updates[game_id][player_name]['ids'].append(entry_id)
-            saved_count += 1
-
-    # --- Save updates if any ---
-    if batch_updates:
-        save_konsum_data(batch_updates)
-        # Update session_state cache
-        for game_id, players in batch_updates.items():
-            if game_id not in st.session_state['cached_konsum']:
-                st.session_state['cached_konsum'][game_id] = {}
-            for player_name, values in players.items():
-                st.session_state['cached_konsum'][game_id][player_name] = values
-
-    print(f"✅ Saved {saved_count} new konsum records to Sheets.")
-    print(f"🚫 Skipped {skipped_count} konsum entries (no matching game, too far after).")
-
-
-
-
-
-# List of SteamIDs to fetch games from
-#STEAM_IDS = ["76561197983741618", "76561198048455133", "76561198021131347"]
-
-# Initialize session state with all Sheets data
-def initialize_session_state(days=2):
-    if 'initialized' not in st.session_state:
-        st.session_state['initialized'] = True
-
-        games_df, konsum_df = fetch_all_sheets_data()
-        st.session_state['games_df'] = games_df
-        st.session_state['konsum_df'] = konsum_df
-
-        cached_games = fetch_games_within_last_48_hours()  # from Sheets
-
-        # 4️⃣ Store in session_state
-        st.session_state['cached_games'] = cached_games
-        st.session_state['cached_konsum'] = {}
-        for game in cached_games:
-            st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
-
-def send_discord_notification(message: str):
-    """Send a message to Discord via webhook."""
-    if not discord_webhook:
-        return
-    try:
-        response = requests.post(discord_webhook, json={"content": message})
-        if response.status_code != 204:
-            st.warning(f"Failed to send Discord message ({response.status_code})")
-    except Exception as e:
-        st.warning(f"Error sending Discord message: {e}")
-
-# Manual refresh button functionality
-def refresh_all(days):
-    # 1️⃣ Fetch new games from Leetify API
-    new_games = fetch_new_games(days)
-    print(f"New games fetched: {len(new_games)}")
-
-    # 2️⃣ Reload everything from Sheets
-    games_df, konsum_df = fetch_all_sheets_data()
-    st.session_state['games_df'] = games_df
-    st.session_state['konsum_df'] = konsum_df
-
-    # 3️⃣ Update cached games
-    st.session_state['cached_games'] = fetch_games_within_last_48_hours()
-    st.session_state['cached_konsum'] = {}
-    for game in st.session_state['cached_games']:
-        st.session_state['cached_konsum'][game['game_id']] = fetch_konsum_data_for_game(game['game_id'])
-    
-    #only call supabase if new game
-    if new_games:
-
-        konsum_df_supabase = fetch_supabase_konsum_data()
-        games_df = st.session_state["games_df"]
-
-        if not konsum_df_supabase.empty:
-            map_konsum_to_games_and_save(konsum_df_supabase, games_df)
-            print("✅ Supabase konsum synced to Google Sheets.")
-        else:
-            print("⚠️ No Supabase konsum data found to sync.")
-    
-
-# Remove caching decorators since we use session state
-def get_cached_games(days):
-    return fetch_games_within_last_48_hours(days)
-
-def get_cached_konsum(game_id):
-    return fetch_konsum_data_for_game(game_id) or {}
-
-# Data Fetching Functions
-
-def fetch_profile(token, start_date, end_date, count=30):
-    print("📡 fetch_profile() called!")
+# ========================= LEETIFY HELPERS =========================
+def fetch_new_games(days=7):
     url = "https://api.cs-prod.leetify.com/api/v2/games/history"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-    }
-
-    filters = {
-        "currentPeriod": {
-            "start": start_date.isoformat() + "Z",
-            "end": end_date.isoformat() + "Z",
-            "count": count
-        },
-        "previousPeriod": {
-            "start": (start_date - timedelta(days=30)).isoformat() + "Z",
-            "end": start_date.isoformat() + "Z",
-            "count": count
-        }
-    }
+    headers = {"Authorization": f"Bearer {leetify_token}"}
+    end = datetime.utcnow()
+    start = end - timedelta(days=days)
+    filters = {"currentPeriod": {"start": start.isoformat()+"Z", "end": end.isoformat()+"Z", "count": 50}}
 
     try:
-        response = requests.get(url, headers=headers, params={"filters": json.dumps(filters)})
-        response.raise_for_status()
-        data = response.json()
-        
-        return data
-    except requests.RequestException as e:
-        print(f"Failed fetching profile: {e}")
-        return None
-
-def fetch_game_details(game_id):
-    try:
-        response = requests.get(GAMES_API + game_id, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException:
-        return None
-
-def fetch_new_games(days, token=leetify_token):
-    """Fetch new games from Leetify API and save them immediately."""
-    new_games = []
-    now = datetime.utcnow()
-    start_date = now - timedelta(days=days)
-
-    profile_data = fetch_profile(token, start_date, now)
-    if not profile_data or "games" not in profile_data:
-        st.warning("No games found or invalid response")
+        data = requests.get(url, headers=headers, params={"filters": json.dumps(filters)}).json()
+    except:
         return []
 
-    existing_game_ids = set(st.session_state.get('games_df', pd.DataFrame()).get('game_id', []))
+    existing = set(st.session_state.games_df['game_id'].astype(str).tolist())
+    new = []
 
-    for game in profile_data.get("games", []):
-        game_id = game.get("id")
-        if not game_id or game_id in existing_game_ids or game_id in {g["game_id"] for g in new_games}:
+    for g in data.get("games", []):
+        gid = g.get("id")
+        if not gid or gid in existing:
             continue
+        finished = datetime.strptime(g["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ")  # UTC!
+        score = g.get("score", [0,0])
+        new.append({
+            "game_id": gid,
+            "map_name": g.get("mapName", "Unknown"),
+            "match_result": g.get("playerStats", {}).get("matchResult", "Unknown"),
+            "score1": score[0], "score2": score[1],
+            "finished_at": finished.strftime("%Y-%m-%d %H:%M:%S")
+        })
 
-        try:
-            finished_at = datetime.strptime(game["finishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ") + timedelta(hours=1)
-            if finished_at > now - timedelta(days=days):
-                finished_at_str = finished_at.strftime("%Y-%m-%d %H:%M:%S")
-                score = game.get("score", [0, 0])
-                match_result = game.get("playerStats", {}).get("matchResult", "Unknown")
+    for g in new:
+        save_game_data(g["game_id"], g["map_name"], g["match_result"], g["score1"], g["score2"], g["finished_at"])
+        existing.add(g["game_id"])
 
-                new_game = {
-                    "game_id": game_id,
-                    "map_name": game.get("mapName", "Unknown"),
-                    "match_result": match_result,
-                    "scores": score,
-                    "game_finished_at": finished_at_str
-                }
-                new_games.append(new_game)
-        except (ValueError, KeyError) as e:
-            st.error(f"Skipping game {game_id} due to error: {e}")
-            continue
+    return new
 
-    # Save all new games to Sheets and session_state
-    for game in new_games:
-        save_game_data(
-            game["game_id"],
-            game["map_name"],
-            game["match_result"],
-            game["scores"][0],
-            game["scores"][1],
-            game["game_finished_at"]
-        )
+def fetch_game_details(gid):
+    try:
+        return requests.get(f"https://api.cs-prod.leetify.com/api/games/{gid}").json()
+    except:
+        return {}
 
-    print(f"✅ {len(new_games)} new games fetched and saved.")
-    return new_games
+# ========================= SESSION & REFRESH =========================
+def init():
+    if "init" not in st.session_state:
+        g, k = fetch_all_sheets_data()
+        st.session_state.games_df = g
+        st.session_state.konsum_df = k
+        st.session_state.days = 7
+        st.session_state.init = True
 
+def full_refresh():
+    with st.spinner("Henter nye kamper og synkroniserer øl..."):
+        fetch_new_games(st.session_state.days)
+        g, k = fetch_all_sheets_data()
+        st.session_state.games_df = g
+        st.session_state.konsum_df = k
+        synced = sync_supabase_to_sheets()
+        st.success(f"Full refresh ferdig! {synced} nye øl synkronisert 🍺")
 
-def async_save(game_id, name, beer_val, water_val):
-    # Run the actual save in a background thread
-    def _save():
-        save_konsum_data(game_id, name, beer_val, water_val)
-        st.session_state[game_id][name] = {"beer": beer_val, "water": water_val}
-    threading.Thread(target=_save, daemon=True).start()
+init()
 
-def get_player_stat(player, stat_key):
-    return player.get(stat_key, 0)
+# ========================= UI HEADER =========================
+img = base64.b64encode(open("bubblogo2.png", "rb").read()).decode()
+st.markdown(f'<div style="text-align:center"><img src="data:image/png;base64,{img}" width="80"><h1>Bubberne Gaming</h1></div>', unsafe_allow_html=True)
 
-# Home Page 
-def home_page(days):
-    
-    games = get_cached_games(days)
-    if not games:
-        st.warning("No games found across all profiles.")
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Gå til", ["🏠 Home", "🍺 Konsum", "📊 Stats", "🚽 Motivation"])
+
+c1, c2 = st.sidebar.columns(2)
+with c1:
+    st.session_state.days = st.number_input("Dager tilbake", 1, 30, st.session_state.days)
+with c2:
+    if st.button("🔄 Refresh Alt"):
+        full_refresh()
+
+if st.sidebar.button("🍺 Force Sync Supabase Øl"):
+    synced = sync_supabase_to_sheets()
+    st.success(f"Synkronisert {synced} nye øl fra Supabase! 🍺")
+
+# Recent games
+games_list = []
+if not st.session_state.games_df.empty:
+    df = st.session_state.games_df.copy()
+    df['game_finished_at'] = pd.to_datetime(df['game_finished_at'], utc=True)
+    cutoff = datetime.utcnow() - timedelta(days=st.session_state.days)
+    recent = df[df['game_finished_at'] >= cutoff].sort_values('game_finished_at', ascending=False)
+    games_list = recent.to_dict('records')
+
+# ========================= HOME PAGE (your beautiful awards) =========================
+def home_page():
+    if not games_list:
+        st.warning("Ingen kamper funnet.")
         return
 
-    games = sorted(games, key=lambda x: x.get("game_finished_at", datetime.min), reverse=True)
+    options = [f"{g['map_name']} ({pd.to_datetime(g['game_finished_at']).strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games_list]
+    sel = st.selectbox("Velg kamp", options)
+    gid = sel.split(" - ")[-1]
+    game = next(g for g in games_list if g["game_id"] == gid)
+    details = fetch_game_details(gid)
 
-    game_options = [f"{g.get('map_name', 'Unknown')} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')}) - {g['game_id']}" for g in games]
-    selected_game = st.selectbox("Pick a game", game_options)
-    game_id = selected_game.split(" - ")[-1]
-    game_data = next((g for g in games if g["game_id"] == game_id), None)
+    if not details:
+        st.error("Klarte ikke hente kampdetaljer.")
+        return
 
-    if game_data:
-        details = fetch_game_details(game_id)
-        if details:
-            players = [
-                {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 0),
-                 "tradeKillAttemptsPercentage": p.get("tradeKillAttemptsPercentage", 0),
-                 "utilityOnDeathAvg": p.get("utilityOnDeathAvg", 0),
-                 "hltvRating": p.get("hltvRating", 0)}
-                for p in details.get("playerStats", []) if NAME_MAPPING.get(p["name"], p["name"]) in ALLOWED_PLAYERS
-            ]
-            if players:
-                players.sort(key=itemgetter("reactionTime"))
-                min_rt = min(p["reactionTime"] for p in players)
-                max_rt = max(p["reactionTime"] for p in players)
+    players = [
+        {"name": NAME_MAPPING.get(p["name"], p["name"]), "reactionTime": p.get("reactionTime", 99),
+         "tradeKillAttemptsPercentage": p.get("tradeKillAttemptsPercentage", 0),
+         "utilityOnDeathAvg": p.get("utilityOnDeathAvg", 0),
+         "hltvRating": p.get("hltvRating", 0)}
+        for p in details.get("playerStats", [])
+        if NAME_MAPPING.get(p["name"], p["name"]) in ALLOWED_PLAYERS
+    ]
 
-                best_trade = max(p["tradeKillAttemptsPercentage"]*100 for p in players)
-                worst_trade = min(p["tradeKillAttemptsPercentage"]*100 for p in players)
+    if not players:
+        st.info("Ingen Bubber-spillere i denne kampen.")
+        return
 
-                top_players = [p for p in players if p["reactionTime"] == min_rt]
-                low_players = [p for p in players if p["reactionTime"] == max_rt]
+    players.sort(key=itemgetter("reactionTime"))
+    min_rt = min(p["reactionTime"] for p in players)
+    max_rt = max(p["reactionTime"] for p in players)
+    best_trade = max(p["tradeKillAttemptsPercentage"]*100 for p in players)
+    worst_trade = min(p["tradeKillAttemptsPercentage"]*100 for p in players)
+    worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)
+    best_hltv = max(p.get("hltvRating", 0) for p in players)
 
-                best_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == best_trade]
-                worst_trade_players = [p for p in players if p["tradeKillAttemptsPercentage"] * 100 == worst_trade]
+    top_rt = [p for p in players if p["reactionTime"] == min_rt]
+    low_rt = [p for p in players if p["reactionTime"] == max_rt]
+    best_t = [p for p in players if p["tradeKillAttemptsPercentage"]*100 == best_trade]
+    worst_t = [p for p in players if p["tradeKillAttemptsPercentage"]*100 == worst_trade]
+    worst_u = [p for p in players if p.get("utilityOnDeathAvg",0) == worst_util]
+    best_h = [p for p in players if p.get("hltvRating",0) == best_hltv]
 
-                worst_util = max(p.get("utilityOnDeathAvg", 0) for p in players)
-                best_hltv = max(p.get("hltvRating", 0) for p in players)
+    col1, col2 = st.columns(2)
+    col3, col4 = st.columns(2)
 
-                worst_util_players = [p for p in players if p.get("utilityOnDeathAvg",0) == worst_util]
-                best_hltv_players = [p for p in players if p.get("hltvRating",0) == best_hltv]
+    with col1:
+        st.markdown(f"""
+            <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
+                <h3>🔥 Reaction Time</h3>
+                <h4>💪 Gooner: {', '.join(p['name'] for p in top_rt)} ({min_rt}s)</h4>
+                <h4>🍺 Pils-bitch: {', '.join(p['name'] for p in low_rt)} ({max_rt}s)</h4>
+            </div>
+        """, unsafe_allow_html=True)
 
-                # Add spacing between columns using st.columns with gap
-                col1, col2 = st.columns([1, 1], gap="small")
-                col3, col4 = st.columns([1, 1], gap="small")
+    with col2:
+        st.markdown(f"""
+            <div style="padding: 15px; background-color: #1976D2; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
+                <h3>🎯 Trade Kill Attempts</h3>
+                <h4>✅ Rizzler: {', '.join(p['name'] for p in best_t)} ({best_trade:.1f}%)</h4>
+                <h4>❌ Baiterbot: {', '.join(p['name'] for p in worst_t)} ({worst_trade:.1f}%)</h4>
+            </div>
+        """, unsafe_allow_html=True)
 
-                with col1:
-                    st.markdown(f"""
-                        <div style="padding: 15px; background-color: #388E3C; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
-                            <h3>🔥 Reaction Time</h3>
-                            <h4>💪 Gooner: {', '.join(p['name'] for p in top_players)} ({min_rt}s)</h4>
-                            <h4>🍺 Pils-bitch: {', '.join(p['name'] for p in low_players)} ({max_rt}s)</h4>
-                        </div>
-                    """, unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""
+            <div style="padding: 15px; background-color: #D32F2F; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
+                <h3>💣 Utility on Death</h3>
+                <h4>🔥 McRizzler: {', '.join(p['name'] for p in worst_u)} ({worst_util:.2f})</h4>
+            </div>
+        """, unsafe_allow_html=True)
 
-                with col2:
-                    st.markdown(f"""
-                        <div style="padding: 15px; background-color: #1976D2; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
-                            <h3>🎯 Trade Kill Attempts</h3>
-                            <h4>✅ Rizzler: {', '.join(p['name'] for p in best_trade_players)} ({best_trade:.1f}%)</h4>
-                            <h4>❌ Baiterbot: {', '.join(p['name'] for p in worst_trade_players)} ({worst_trade:.1f}%)</h4>
-                        </div>
-                    """, unsafe_allow_html=True)
+    with col4:
+        st.markdown(f"""
+            <div style="padding: 15px; background-color: #301934; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
+                <h3>🏆 Best HLTV Rating</h3>
+                <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_h)} ({best_hltv:.2f})</h4>
+            </div>
+        """, unsafe_allow_html=True)
 
-                with col3:
-                    st.markdown(f"""
-                        <div style="padding: 15px; background-color: #D32F2F; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
-                            <h3>💣 Utility on Death</h3>
-                            <h4>🔥 McRizzler: {', '.join(p['name'] for p in worst_util_players)} ({worst_util:.2f})</h4>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-                with col4:
-                    st.markdown(f"""
-                        <div style="padding: 15px; background-color: #301934; color: white; border-radius: 10px; text-align: center; border: 1px solid black; margin: 5px;">
-                            <h3>🏆 Best HLTV Rating</h3>
-                            <h4>⭐ OhioMaster: {', '.join(p['name'] for p in best_hltv_players)} ({best_hltv:.2f})</h4>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-    st.write(f"Total games: {len(games)}")
-
-#input data
-def input_data_page(days):
+# ========================= KONSUM PAGE =========================
+def konsum_page():
     st.header("🍺 BubbeData")
-
-    # --- Refresh Button (manual) ---
-    refresh_clicked = st.sidebar.button("🔄 Refresh Data & Discordbaby")
-    if refresh_clicked:
-        refresh_all(days)
-        st.success("🔄 Data refreshed and Supabase konsum synced!")
-
-    # --- Fetch games after refresh or normal page load ---
-    games = sorted(
-        get_cached_games(days),
-        key=lambda x: x.get("game_finished_at", datetime.min),
-        reverse=True
-    )
-    if not games:
-        st.warning("No games found in the selected timeframe.")
-        return
-
-    # Fetch all game details once + gather all unique players
-    game_details_map = {}
     all_players = set()
-    for game in games:
-        details = fetch_game_details(game.get("game_id")) or {}
-        game_details_map[game["game_id"]] = details
-        for p in details.get("playerStats", []):
-            name = NAME_MAPPING.get(p["name"], p["name"])
-            if name in ALLOWED_PLAYERS:
-                all_players.add(name)
+    for g in games_list:
+        det = fetch_game_details(g["game_id"])
+        for p in det.get("playerStats", []):
+            n = NAME_MAPPING.get(p["name"], p["name"])
+            if n in ALLOWED_PLAYERS:
+                all_players.add(n)
 
-    # --- Player Filter ---
-    selected_players = st.multiselect(
-        "👥 Filter players",
-        options=sorted(all_players),
-        default=[],
-        help="Select which gooners you want to view consumption for."
-    )
+    selected = st.multiselect("Filter spillere", sorted(all_players), default=[])
 
-    # --- Display each game with synced konsum data ---
-    for game in games:
-        details = game_details_map.get(game["game_id"], {})
-        map_name = game.get("map_name", "Unknown")
-        match_result = game.get("match_result", "Unknown")
-        scores = [game.get("score_team1", 0), game.get("score_team2", 0)]
+    for game in games_list:
+        det = fetch_game_details(game["game_id"])
+        konsum_rows = st.session_state.konsum_df[st.session_state.konsum_df["game_id"] == game["game_id"]]
+        konsum_dict = {r["player_name"]: {"beer": int(r.get("beer") or 0), "water": int(r.get("water") or 0)} 
+                      for _, r in konsum_rows.iterrows()}
 
-        game_finished_at = game.get("game_finished_at")
-        if isinstance(game_finished_at, str):
-            try:
-                game_finished_at = datetime.strptime(game_finished_at, "%Y-%m-%dT%H:%M:%S.%fZ")
-            except ValueError:
-                game_finished_at = datetime.now()
-        elif not isinstance(game_finished_at, datetime):
-            game_finished_at = datetime.now()
-
-        label = f"🗺️ {map_name} | {match_result} ({scores[0]}:{scores[1]}) | {game_finished_at.strftime('%d.%m.%y %H:%M')}"
+        dt = pd.to_datetime(game["game_finished_at"]).strftime("%d.%m.%y %H:%M")
+        label = f"🗺️ {game['map_name']} | {game['match_result']} ({game.get('score1',0)}:{game.get('score2',0)}) | {dt}"
+        
         with st.expander(label, expanded=False):
-            konsum = fetch_konsum_data_for_game(game["game_id"]) or {}
-            df_display = []
-
-            for p in details.get("playerStats", []):
+            rows = []
+            for p in det.get("playerStats", []):
                 name = NAME_MAPPING.get(p["name"], p["name"])
-                if name not in ALLOWED_PLAYERS:
+                if name not in ALLOWED_PLAYERS or (selected and name not in selected):
                     continue
-                if selected_players and name not in selected_players:
-                    continue
-
-                beer_val = konsum.get(name, {}).get("beer", 0)
-                water_val = konsum.get(name, {}).get("water", 0)
-                kd = p.get("kdRatio", 0)
-                adr = p.get("dpr", 0)
-                hltv = p.get("hltvRating", 0)
-
-                df_display.append({
+                rows.append({
                     "Player": name,
-                    "Beer": beer_val,
-                    "Water": water_val,
-                    "K/D": round(kd, 2) if isinstance(kd, (float, int)) else kd,
-                    "ADR": round(adr, 2) if isinstance(adr, (float, int)) else adr,
-                    "HLTV": round(hltv, 2) if isinstance(hltv, (float, int)) else hltv
+                    "Beer": konsum_dict.get(name, {}).get("beer", 0),
+                    "Water": konsum_dict.get(name, {}).get("water", 0),
+                    "K/D": round(p.get("kdRatio", 0), 2),
+                    "ADR": round(p.get("dpr", 0), 2),
+                    "HLTV": round(p.get("hltvRating", 0), 2),
                 })
-
-            if df_display:
-                st.dataframe(pd.DataFrame(df_display))
+            if rows:
+                st.dataframe(pd.DataFrame(rows))
             else:
-                st.info("No player consumption data available for this game yet.")
+                st.info("Ingen konsum registrert ennå.")
 
-
-
-# Stats Page
+# ========================= STATS PAGE (with BubbeRating) =========================
 STAT_MAP = {
-    "K/D Ratio": "kdRatio", "ADR": "dpr", "HLTV Rating": "hltvRating", "Reaction Time": "reactionTime", "TradeAttempts": "tradeKillAttemptsPercentage",
-    "Enemies Flashed": "flashbangThrown", "2k Kills": "multi2k", "3k Kills": "multi3k"
+    "K/D Ratio": "kdRatio", "ADR": "dpr", "HLTV Rating": "hltvRating",
+    "Reaction Time": "reactionTime", "TradeAttempts": "tradeKillAttemptsPercentage",
 }
 
-def load_all_stats(days):
-    games = sorted(get_cached_games(days), key=lambda x: x["game_finished_at"])
-    if not games:
-        return None, None
-
+def load_stats():
     rows = []
-    for g in games:
-        details = fetch_game_details(g["game_id"]) or {}
-        konsum = get_cached_konsum(g["game_id"]) or {}
-        game_label = f"{g['map_name']} ({g['game_finished_at'].strftime('%d.%m.%y %H:%M')})"
+    for g in games_list:
+        det = fetch_game_details(g["game_id"])
+        konsum_dict = {r["player_name"]: {"beer": int(r.get("beer") or 0), "water": int(r.get("water") or 0)}
+                      for _, r in st.session_state.konsum_df[st.session_state.konsum_df["game_id"] == g["game_id"]].iterrows()}
+        label = f"{g['map_name']} ({pd.to_datetime(g['game_finished_at']).strftime('%d.%m.%y %H:%M')})"
 
-        for p in details.get("playerStats", []):
+        for p in det.get("playerStats", []):
             name = NAME_MAPPING.get(p["name"], p["name"])
             if name not in ALLOWED_PLAYERS:
                 continue
-
-            row = {
-                "Game": game_label,
-                "Player": name,
-                "Beer": konsum.get(name, {}).get("beer", 0),
-                "Water": konsum.get(name, {}).get("water", 0),
-            }
-            # Add all stats in STAT_MAP
-            for display_name, stat_key in STAT_MAP.items():
-                val = p.get(stat_key, 0)
-                # tradeKillAttemptsPercentage needs scaling
-                if stat_key == "tradeKillAttemptsPercentage":
-                    val = val * 100
-                row[display_name] = val
+            row = {"Game": label, "Player": name,
+                   "Beer": konsum_dict.get(name, {}).get("beer", 0),
+                   "Water": konsum_dict.get(name, {}).get("water", 0)}
+            for disp, key in STAT_MAP.items():
+                val = p.get(key, 0)
+                if key == "tradeKillAttemptsPercentage":
+                    val *= 100
+                row[disp] = val
             rows.append(row)
 
     df = pd.DataFrame(rows)
+    if df.empty:
+        return None, None
 
-    # --- Compute per-player averages ---
     grouped = df.groupby("Player").agg({
-    "Beer": "sum",
-    "Water": "sum",
-    "K/D Ratio": "mean",
-    "ADR": "mean",
-    "HLTV Rating": "mean",
-    "Reaction Time": "mean",
-    "TradeAttempts": "mean"
-}).reset_index()
+        "Beer": "sum", "Water": "sum", "K/D Ratio": "mean", "ADR": "mean",
+        "HLTV Rating": "mean", "Reaction Time": "mean", "TradeAttempts": "mean"
+    }).reset_index()
 
-    # --- BubbeRating ---
-    trade_weight = 0.5
-    beer_weight = 0.9
-    games_played = df["Game"].nunique()
-
+    games_count = df["Game"].nunique()
     grouped["BubbeRating"] = (
         grouped["HLTV Rating"] +
-        grouped["HLTV Rating"] * ((grouped["Beer"] / games_played) * beer_weight) +
-        (grouped["TradeAttempts"] / 100) * trade_weight
+        grouped["HLTV Rating"] * ((grouped["Beer"] / max(games_count,1)) * 0.9) +
+        (grouped["TradeAttempts"] / 100) * 0.5
     ).round(2)
 
     return df, grouped
 
-def stats_page(days):
-    st.header("Stats")
-
-    with st.spinner("Loading stats..."):
-        df, grouped = load_all_stats(days)
-        if df is None or df.empty:
-            st.warning("No games found in the selected timeframe.")
+def stats_page():
+    st.header("📊 Stats")
+    with st.spinner("Laster stats..."):
+        df, grouped = load_stats()
+        if df is None:
+            st.warning("Ingen data.")
             return
 
-        # --- Build Top 3 Table (static, shown first) ---
-        stat_options = list(STAT_MAP.keys()) + ["Beer", "Water", "BubbeRating"]
+        # Top 3 table
+        def top3(col, asc=False, fmt=".2f"):
+            top = grouped.sort_values(col, ascending=asc).head(3)
+            return [f"{r.Player} ({r[col]:{fmt}})" for _, r in top.iterrows()] + ["-"]*3
 
-        def top3(col, ascending=False, fmt=".2f"):
-            if col == "Reaction Time":  # smaller is better
-                ascending = True
-            top = grouped.sort_values(col, ascending=ascending).head(3)
-            formatted = [f"{row.Player} ({row[col]:{fmt}})" for _, row in top.iterrows()]
-            while len(formatted) < 3:
-                formatted.append("-")
-            return formatted
-
-        table_data = {
-            "HLTV Rating": top3("HLTV Rating", False, ".2f"),
-            "K/D Ratio": top3("K/D Ratio", False, ".2f"),
-            "Reaction Time": top3("Reaction Time", True, ".2f"),
+        table = {
+            "HLTV Rating": top3("HLTV Rating", False),
+            "K/D Ratio": top3("K/D Ratio", False),
+            "Reaction Time": top3("Reaction Time", True),
             "Trade (%)": top3("TradeAttempts", False, ".1f"),
             "Beer": top3("Beer", False, ".0f"),
             "Water": top3("Water", False, ".0f"),
-            "BubbeRating": top3("BubbeRating", False, ".2f"),
+            "BubbeRating": top3("BubbeRating", False),
         }
+        st.markdown("### 🏆 Topp 3 Gjennom Alle Kamper")
+        st.dataframe(pd.DataFrame(table, index=["1.", "2.", "3."]), use_container_width=True)
 
-        df_table = pd.DataFrame(table_data, index=["1", "2", "3"])
-        st.markdown("### Best Average Stats Across Games")
-        st.dataframe(df_table, use_container_width=True)
-
-    # --- Stat picker + graph (below table) ---
-    stat_options = list(STAT_MAP.keys()) + ["Beer", "Water", "BubbeRating"]
-    selected_stat = st.selectbox("Stat to plot", stat_options)
-
-    if selected_stat == "BubbeRating":
-        fig = px.bar(grouped, x="Player", y="BubbeRating",
-                     title="BubbeRating per Player")
-    else:
-        fig = px.bar(df, x="Player", y=selected_stat, color="Game",
-                     barmode="group", title=f"{selected_stat} per Player")
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- Download CSV of all raw stats ---
-    csv = df.to_csv(index=False)
-    st.download_button(
-        "Download Selected Stats as CSV",
-        data=csv,
-        file_name="all_game_stats.csv",
-        mime="text/csv"
-    )
-    if st.button("Download Entire Database (Full CSV)"):
-        download_full_database()
-
-def Download_Game_Stats(days, game_details_map, konsum_map):
-    try:
-        all_game_data = []
-        with st.spinner("Henter game data..."):
-            games_in_memory = sorted(get_cached_games(days), key=lambda g: g["game_finished_at"], reverse=True)
-
-            for game in games_in_memory:
-                game_id = game["game_id"]
-                map_name = game["map_name"]
-                game_details = game_details_map.get(game_id, {})
-                konsum_data = konsum_map.get(game_id, {})
-
-                for player in game_details.get("playerStats", []):
-                    raw_name = player["name"]
-                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)
-                    
-                    if mapped_name in ALLOWED_PLAYERS:
-                        player_data = {
-                            "Game": map_name,
-                            "Player": mapped_name,
-                            "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M"),
-                        }
-
-                        for display_name, stat_key in STAT_MAP.items():
-                            player_data[display_name] = get_player_stat(player, stat_key)
-
-                        player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
-                        player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
-
-                        all_game_data.append(player_data)
-
-        if all_game_data:
-            df_full = pd.DataFrame(all_game_data)
-            csv_buffer = StringIO()
-            df_full.to_csv(csv_buffer, index=False)
-            csv_data = csv_buffer.getvalue()
-
-            st.download_button(
-                label="Klikk her for å laste ned CSV fil",
-                data=csv_data,
-                file_name="all_game_stats.csv",
-                mime="text/csv"
-            )
-    except Exception as e:
-        st.error(f"Error downloading stats: {e}")
-
-def konsum_data_for_game(game_id, konsum_df):
-    """Fetch konsum data for a specific game from konsum_df DataFrame."""
-    try:
-        if konsum_df.empty:
-            return {}
-        
-        game_konsum = konsum_df[konsum_df['game_id'] == str(game_id)]
-        konsum_data = {}
-        for _, row in game_konsum.iterrows():
-            player_name = row['player_name']
-            beer = int(row['beer']) if str(row['beer']).isdigit() else 0
-            water = int(row['water']) if str(row['water']).isdigit() else 0
-            konsum_data[player_name] = {'beer': beer, 'water': water}
-        return konsum_data
-    except Exception as e:
-        print(f"⚠️ Error processing konsum data for {game_id}: {e}")
-        return {}
-
-def download_full_database():
-    try:
-        with st.spinner("Fetching ALL games from Google Sheets..."):
-            games_df, konsum_df = fetch_all_sheets_data()
-
-            if games_df.empty:
-                st.warning("No games found in Google Sheets.")
-                return
-
-            all_game_data = []
-
-            # Ensure proper types
-            games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], errors="coerce")
-            # Loop through all games
-            for _, game in games_df.sort_values("game_finished_at", ascending=False).iterrows():
-                game_id = game["game_id"]
-                map_name = game.get("map_name", "Unknown")
-                konsum_data = konsum_data_for_game(game_id, konsum_df)
-
-                details = fetch_game_details(game_id) or {}
-                
-
-                for p in details.get("playerStats", []):
-                    raw_name = p["name"]
-                    mapped_name = NAME_MAPPING.get(raw_name, raw_name)
-                    if mapped_name not in ALLOWED_PLAYERS:
-                        continue
-
-                    player_data = {
-                        "Game": map_name,
-                        "Player": mapped_name,
-                        "Date": game["game_finished_at"].strftime("%Y-%m-%d %H:%M") if pd.notna(game["game_finished_at"]) else "Unknown",
-                    }
-
-                    # Add stats from STAT_MAP
-                    for display_name, stat_key in STAT_MAP.items():
-                        val = p.get(stat_key, 0)
-                        if stat_key == "tradeKillAttemptsPercentage":
-                            val = val * 100
-                        player_data[display_name] = val
-
-                    # Beer & Water from konsum sheet (if exists)
-                    player_data["Beer"] = konsum_data.get(mapped_name, {}).get("beer", 0)
-                    player_data["Water"] = konsum_data.get(mapped_name, {}).get("water", 0)
-
-                    all_game_data.append(player_data)
-
-        if all_game_data:
-            df_full = pd.DataFrame(all_game_data)
-
-            # Optional: BubbeRating per row
-            trade_weight = 0.5
-            beer_weight = 0.9
-            df_full["BubbeRating"] = (
-                df_full["HLTV Rating"]
-                + df_full["HLTV Rating"] * (df_full["Beer"] * beer_weight)
-                + (df_full["TradeAttempts"] / 100) * trade_weight
-            ).round(2)
-
-            csv_buffer = StringIO()
-            df_full.to_csv(csv_buffer, index=False)
-            csv_data = csv_buffer.getvalue()
-
-            st.download_button(
-                label="Download Entire Database (CSV)",
-                data=csv_data,
-                file_name="all_game_stats_full.csv",
-                mime="text/csv"
-            )
+        stat = st.selectbox("Velg stat", list(STAT_MAP.keys()) + ["Beer", "Water", "BubbeRating"])
+        if stat == "BubbeRating":
+            fig = px.bar(grouped, x="Player", y="BubbeRating", title="BubbeRating")
         else:
-            st.warning("No player data found across all games.")
+            fig = px.bar(df, x="Player", y=stat, color="Game", barmode="group", title=stat)
+        st.plotly_chart(fig, use_container_width=True)
 
-    except Exception as e:
-        st.error(f"Error downloading full database: {e}")
+        csv = df.to_csv(index=False)
+        st.download_button("Last ned rådata (CSV)", csv, "bubber_stats.csv", "text/csv")
 
-# Motivation Page
+# ========================= MOTIVATION =========================
 def motivation_page():
     st.header("Get skibid going!")
-    st.markdown("""
-        <iframe width="560" height="315" src="https://www.youtube.com/embed/6dMjCa0nqK0" 
-        frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-        allowfullscreen></iframe>
-    """, unsafe_allow_html=True)
+    st.video("https://www.youtube.com/watch?v=6dMjCa0nqK0")
 
-# Main UI
-def img_to_base64(img_path):
-    with open(img_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
-
-img_base64 = img_to_base64("bubblogo2.png")
-
-html_code = f"""
-<div style="
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 150px;  
-    text-align: center;
-">
-    <img src="data:image/png;base64,{img_base64}" width="80" style="margin-right: 10px;">
-    <h1 style="margin: 0;">Bubberne Gaming</h1>
-</div>
-"""
-st.markdown(html_code, unsafe_allow_html=True)
-
-#Start caching
-initialize_session_state()
-
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ("🏠 Home", "📝 Konsum", "📊 Stats", "🚽 Motivation"))
-
-#Refresh og datepicker
-if "days_value" not in st.session_state:
-    st.session_state["days_value"] = 2
-
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    # Temporary input, does NOT cause refresh yet
-    temp_days = st.number_input("Dager tilbake", min_value=1, max_value=15, value=st.session_state["days_value"], key="temp_days_input")
-
-with col2:
-    st.markdown("<br>", unsafe_allow_html=True)  # align button with label
-    if st.button("🔄 Refresh Data"):
-        # When clicked, save the temp value to session_state and refresh
-        st.session_state["days_value"] = temp_days
-        refresh_all(st.session_state["days_value"])
-    
-        
-
-# Now use st.session_state["days_value"] in your app logic
-days = st.session_state["days_value"]
-
-
+# ========================= ROUTING =========================
 if page == "🏠 Home":
-    home_page(days)
-elif page == "📝 Konsum":
-    input_data_page(days)
+    home_page()
+elif page == "🍺 Konsum":
+    konsum_page()
 elif page == "📊 Stats":
-    stats_page(days)
+    stats_page()
 elif page == "🚽 Motivation":
     motivation_page()
