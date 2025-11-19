@@ -1,4 +1,3 @@
-# main.py – Bubberne Gaming 🍺 – FULLT FUNGERENDE + ALLE ORIGINALE FUNKSJONER
 import streamlit as st
 import requests
 import base64
@@ -7,8 +6,9 @@ import pandas as pd
 import plotly.express as px
 from supabase import create_client
 from operator import itemgetter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import StringIO
+import time
 
 # ========================= SECRETS =========================
 leetify_token = st.secrets["leetify"]["api_token"]
@@ -18,7 +18,6 @@ SUPABASE_URL = st.secrets["supabase"]["url"]
 SUPABASE_KEY = st.secrets["supabase"]["key"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Google Sheets
 SHEET_ID = "19vqg2lx3hMCEj7MtxkISzsYz0gUaCLgSV11q-YYtXQY"
 from google.oauth2.service_account import Credentials
 import gspread
@@ -41,96 +40,58 @@ NAME_MAPPING = {
 }
 ALLOWED_PLAYERS = set(NAME_MAPPING.values())
 
-# ========================= GOOGLE SHEETS HELPERE (FRA DATAINPUT.PY) =========================
-def fetch_all_sheets_data():
+# ========================= SMART CACHING (INGEN QUOTA-SPAM) =========================
+@st.cache_data(ttl=120, show_spinner=False)  # Oppdateres max hver 2. minutt
+def cached_fetch_all_sheets():
     try:
         sh = gsheet_client.open_by_key(SHEET_ID)
         games_vals = sh.worksheet("games").get_all_values()
         konsum_vals = sh.worksheet("konsum").get_all_values()
-
         games_df = pd.DataFrame(games_vals[1:], columns=games_vals[0]) if games_vals else pd.DataFrame()
         konsum_df = pd.DataFrame(konsum_vals[1:], columns=konsum_vals[0]) if konsum_vals else pd.DataFrame()
         return games_df, konsum_df
     except Exception as e:
-        st.error(f"Google Sheets feil: {e}")
+        st.error(f"Sheets feil: {e}")
         return pd.DataFrame(), pd.DataFrame()
 
-def save_game_data(game_id, map_name, match_result, score_team1, score_team2, game_finished_at):
-    """Legger til ny kamp + oppdaterer session_state (som før)"""
+# ========================= GOOGLE SHEETS SKRIVING (med rate limit) =========================
+def rate_limited_append(sheet_name, row):
     try:
-        sheet = gsheet_client.open_by_key(SHEET_ID).worksheet("games")
-        sheet.append_row([game_id, map_name, match_result, int(score_team1), int(score_team2), game_finished_at])
-
-        new_row = pd.DataFrame([{
-            "game_id": game_id, "map_name": map_name, "match_result": match_result,
-            "score_team1": int(score_team1), "score_team2": int(score_team2),
-            "game_finished_at": game_finished_at
-        }])
-        existing = st.session_state.get("games_df", pd.DataFrame())
-        st.session_state.games_df = pd.concat([existing, new_row], ignore_index=True)
+        sheet = gsheet_client.open_by_key(SHEET_ID).worksheet(sheet_name)
+        sheet.append_row(row)
+        time.sleep(1.1)  # Viktig! Holder oss under 60 requests/min
     except Exception as e:
-        st.error(f"Kunne ikke lagre kamp: {e}")
+        if "429" in str(e):
+            st.error("Google Sheets quota – venter 60 sek...")
+            time.sleep(60)
+            rate_limited_append(sheet_name, row)
+        else:
+            st.error(f"Kunne ikke lagre: {e}")
 
-def save_konsum_data(batch_updates):
-    """
-    batch_updates = {game_id: {player_name: {"beer": x, "water": y, "ids": [1,2,3]}}}
-    Oppdaterer eksisterende rader eller legger til nye – nøyaktig som din gamle kode
-    """
-    if not batch_updates:
+def save_game_data(game_id, map_name, match_result, s1, s2, finished_at):
+    rate_limited_append("games", [game_id, map_name, match_result, int(s1), int(s2), finished_at])
+
+def save_konsum_batch(batch):
+    if not batch:
         return
-
+    sheet = gsheet_client.open_by_key(SHEET_ID).worksheet("konsum")
+    rows = []
+    for gid, players in batch.items():
+        for p, d in players.items():
+            ids_str = ",".join(map(str, d.get("ids", [])))
+            rows.append([str(gid), p, d["beer"], d["water"], ids_str])
     try:
-        sheet = gsheet_client.open_by_key(SHEET_ID).worksheet("konsum")
-        existing_df = st.session_state.get("konsum_df", pd.DataFrame())
-
-        rows_to_append = []
-        updates = []  # (row_index_1based, beer, water, ids_str)
-
-        for game_id, players in batch_updates.items():
-            for player_name, data in players.items():
-                beer = data.get("beer", 0)
-                water = data.get("water", 0)
-                ids = data.get("ids", [])
-                ids_str = ",".join(map(str, ids))
-
-                # Sjekk om rad allerede finnes
-                match = existing_df[
-                    (existing_df["game_id"] == str(game_id)) &
-                    (existing_df["player_name"] == player_name)
-                ]
-
-                if not match.empty:
-                    idx = match.index[0] + 2  # gspread bruker 1-basert + header
-                    updates.append((idx, beer, water, ids_str))
-                    existing_df.loc[match.index, ["beer", "water", "IDs"]] = [beer, water, ids_str]
-                else:
-                    rows_to_append.append([str(game_id), player_name, beer, water, ids_str])
-                    new_row = pd.DataFrame([{
-                        "game_id": str(game_id), "player_name": player_name,
-                        "beer": beer, "water": water, "IDs": ids_str
-                    }])
-                    existing_df = pd.concat([existing_df, new_row], ignore_index=True)
-
-        # Utfør oppdateringer
-        for row_idx, b, w, ids in updates:
-            sheet.update(f"C{row_idx}:E{row_idx}", [[b, w, ids]])
-
-        # Legg til nye rader
-        if rows_to_append:
-            sheet.append_rows(rows_to_append)
-
-        st.session_state.konsum_df = existing_df
+        sheet.append_rows(rows)
+        time.sleep(len(rows) * 0.3)  # Sikker margin
     except Exception as e:
-        st.error(f"Kunne ikke lagre konsum: {e}")
+        st.error(f"Konsum batch feil: {e}")
 
-# ========================= SUPABASE SYNC (NÅ MED save_konsum_data!) =========================
+# ========================= SUPABASE SYNC =========================
 def sync_supabase_to_sheets():
     try:
         data = supabase.table("entries").select("*").execute().data
-    except Exception as e:
-        st.warning(f"Supabase feil: {e}")
+    except:
         return 0
-
     if not data:
         return 0
 
@@ -138,21 +99,18 @@ def sync_supabase_to_sheets():
     sup_df["datetime"] = pd.to_datetime(sup_df["datetime"], utc=True)
     sup_df.rename(columns={"name": "raw_name"}, inplace=True)
 
-    games_df = st.session_state.games_df.copy()
+    games_df, _ = cached_fetch_all_sheets()
     if games_df.empty:
         return 0
 
     games_df["game_finished_at"] = pd.to_datetime(games_df["game_finished_at"], utc=True, errors="coerce")
     games_df = games_df.dropna(subset=["game_finished_at"]).sort_values("game_finished_at")
 
-    def map_drink(txt):
-        if not isinstance(txt, str):
-            return None
-        t = txt.lower()
-        if any(x in t for x in ["beer", "øl", "pils"]):
-            return "beer"
-        if any(x in t for x in ["water", "vann"]):
-            return "water"
+    def map_drink(t):
+        if not isinstance(t, str): return None
+        t = t.lower()
+        if any(x in t for x in ["beer", "øl", "pils"]): return "beer"
+        if any(x in t for x in ["water", "vann"]): return "water"
         return None
 
     sup_df["type"] = sup_df["bgdata"].apply(map_drink)
@@ -168,25 +126,23 @@ def sync_supabase_to_sheets():
         drink = row["type"]
         eid = row["id"]
 
-        past_games = games_df[games_df["game_finished_at"] <= ts]
-        if past_games.empty:
-            continue
-        closest = past_games.iloc[-1]
-        if ts - closest["game_finished_at"] > timedelta(hours=72):
-            continue
+        past = games_df[games_df["game_finished_at"] <= ts]
+        if past.empty: continue
+        closest = past.iloc[-1]
+        if ts - closest["game_finished_at"] > timedelta(hours=72): continue
 
         gid = str(closest["game_id"])
         batch.setdefault(gid, {})
         batch[gid].setdefault(player, {"beer": 0, "water": 0, "ids": []})
-
         if eid not in batch[gid][player]["ids"]:
             batch[gid][player][drink] += 1
             batch[gid][player]["ids"].append(eid)
             processed += 1
 
     if batch:
-        save_konsum_data(batch)
-        st.success(f"Synkronisert {processed} nye øl fra Supabase! 🍺")
+        save_konsum_batch(batch)
+        st.success(f"Synkronisert {processed} nye øl! 🍺")
+        st.session_state.clear_cache()  # Tving ny lesing neste gang
 
     return processed
 
@@ -235,25 +191,36 @@ def fetch_game_details(gid):
     except:
         return {}
 
-# ========================= INIT & REFRESH =========================
-def init():
-    if "init" not in st.session_state:
-        g, k = fetch_all_sheets_data()
-        st.session_state.games_df = g
-        st.session_state.konsum_df = k
-        st.session_state.days = 7
-        st.session_state.init = True
-
 def full_refresh():
-    with st.spinner("Oppdaterer alt..."):
-        fetch_new_games(st.session_state.days)
-        g, k = fetch_all_sheets_data()
-        st.session_state.games_df = g
-        st.session_state.konsum_df = k
-        synced = sync_supabase_to_sheets()
-        st.success(f"Ferdig! {synced} nye øl synkronisert 🍺")
+    with st.spinner("Oppdaterer..."):
+        # Bare én Sheets-lesing
+        st.cache_data.clear()
+        games_df, konsum_df = cached_fetch_all_sheets()
+        st.session_state.games_df = games_df
+        st.session_state.konsum_df = konsum_df
 
-init()
+        fetch_new_games(st.session_state.days)
+        sync_supabase_to_sheets()
+        st.success("Ferdig!")
+
+if "init" not in st.session_state:
+    games_df, konsum_df = cached_fetch_all_sheets()
+    st.session_state.games_df = games_df
+    st.session_state.konsum_df = konsum_df
+    st.session_state.days = 7
+    st.session_state.init = True
+
+# ========================= ROBUST GAMES LIST =========================
+games_list = []
+if not st.session_state.games_df.empty:
+    df = st.session_state.games_df.copy()
+    df["game_finished_at"] = pd.to_datetime(df["game_finished_at"], errors="coerce", utc=True)
+    df = df.dropna(subset=["game_finished_at"])
+    if not df.empty:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=st.session_state.days)
+        games_list = df[df["game_finished_at"] >= cutoff] \
+                      .sort_values("game_finished_at", ascending=False) \
+                      .to_dict("records")
 
 # ========================= UI =========================
 img = base64.b64encode(open("bubblogo2.png", "rb").read()).decode()
