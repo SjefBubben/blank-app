@@ -219,7 +219,7 @@ if not st.session_state.games_df.empty:
     if not df.empty:
         cutoff = datetime.now(timezone.utc) - timedelta(days=st.session_state.days)
         games_list = df[df["game_finished_at"] >= cutoff] \
-                      .sort_values("game_finished_at", ascending=True) \
+                      .sort_values("game_finished_at", ascending=False) \
                       .to_dict("records")
 
 # ========================= UI =========================
