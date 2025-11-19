@@ -85,7 +85,7 @@ def map_konsum_to_games_and_save(konsum_df, games_df, hours_window=24):
         if isinstance(x, str):
             x = x.lower()
             if "beer" in x: return "beer"
-            if "water" in x: return "water"
+            if "vann" in x: return "water"
         return None
 
     konsum_df['drink_type'] = konsum_df['bgdata'].map(map_drink)
